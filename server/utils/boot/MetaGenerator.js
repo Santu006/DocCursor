@@ -27,8 +27,8 @@ class MetaGenerator {
   #customConfig = null;
 
   #defaultManifest = {
-    name: "AnythingLLM",
-    short_name: "AnythingLLM",
+    name: "DocCursor",
+    short_name: "DocCursor",
     display: "standalone",
     orientation: "portrait",
     start_url: "/",
@@ -59,21 +59,21 @@ class MetaGenerator {
       {
         tag: "title",
         props: null,
-        content: "AnythingLLM | Your personal LLM trained on anything",
+        content: "DocCursor | AI-powered document workspace",
       },
 
       {
         tag: "meta",
         props: {
           name: "title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "DocCursor | AI-powered document workspace",
         },
       },
       {
         tag: "meta",
         props: {
           description: "title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "DocCursor | AI-powered document workspace",
         },
       },
 
@@ -87,14 +87,14 @@ class MetaGenerator {
         tag: "meta",
         props: {
           property: "og:title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "DocCursor | AI-powered document workspace",
         },
       },
       {
         tag: "meta",
         props: {
           property: "og:description",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "DocCursor | AI-powered document workspace",
         },
       },
       {
@@ -119,14 +119,14 @@ class MetaGenerator {
         tag: "meta",
         props: {
           property: "twitter:title",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "DocCursor | AI-powered document workspace",
         },
       },
       {
         tag: "meta",
         props: {
           property: "twitter:description",
-          content: "AnythingLLM | Your personal LLM trained on anything",
+          content: "DocCursor | AI-powered document workspace",
         },
       },
       {
@@ -229,7 +229,7 @@ class MetaGenerator {
             props: null,
             content:
               customTitle ??
-              "AnythingLLM | Your personal LLM trained on anything",
+              "DocCursor | AI-powered document workspace",
           };
         }
         // Override meta title
@@ -240,7 +240,7 @@ class MetaGenerator {
               name: "title",
               content:
                 customTitle ??
-                "AnythingLLM | Your personal LLM trained on anything",
+                "DocCursor | AI-powered document workspace",
             },
           };
         }
@@ -252,7 +252,7 @@ class MetaGenerator {
               property: "og:title",
               content:
                 customTitle ??
-                "AnythingLLM | Your personal LLM trained on anything",
+                "DocCursor | AI-powered document workspace",
             },
           };
         }
@@ -264,7 +264,7 @@ class MetaGenerator {
               property: "twitter:title",
               content:
                 customTitle ??
-                "AnythingLLM | Your personal LLM trained on anything",
+                "DocCursor | AI-powered document workspace",
             },
           };
         }
@@ -330,7 +330,7 @@ class MetaGenerator {
       const { SystemSettings } = require("../../models/systemSettings");
       const manifestName = await SystemSettings.getValueOrFallback(
         { label: "meta_page_title" },
-        "AnythingLLM"
+        "DocCursor"
       );
       const faviconURL = await SystemSettings.getValueOrFallback(
         { label: "meta_page_favicon" },

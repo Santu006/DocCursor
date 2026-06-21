@@ -84,7 +84,7 @@ export default function NewBrowserExtensionApiKeyModal({
                 </p>
               )}
               <p className="text-white text-opacity-60 text-xs md:text-sm">
-                After clicking "Create API Key", AnythingLLM will attempt to
+                After clicking "Create API Key", DocCursor will attempt to
                 connect to your browser extension automatically.
               </p>
               <p className="text-white text-opacity-60 text-xs md:text-sm">

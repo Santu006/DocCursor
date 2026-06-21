@@ -8,7 +8,7 @@ const TRANSLATIONS = {
     llm: {
       title: "Preferința LLM",
       description:
-        "AnythingLLM poate funcționa cu mai mulți furnizori LLM. Acesta va fi serviciul care gestionează conversațiile.",
+        "DocCursor poate funcționa cu mai mulți furnizori LLM. Acesta va fi serviciul care gestionează conversațiile.",
     },
     userSetup: {
       title: "Configurare Utilizator",
@@ -35,15 +35,15 @@ const TRANSLATIONS = {
         "Aceste setări pot fi reconfigurate oricând în setările aplicației.",
     },
     survey: {
-      title: "Bun venit la AnythingLLM",
+      title: "Bun venit la DocCursor",
       description:
-        "Ajută-ne să facem AnythingLLM potrivit pentru nevoile tale. Opțional.",
+        "Ajută-ne să facem DocCursor potrivit pentru nevoile tale. Opțional.",
       email: "Care este adresa ta de email?",
-      useCase: "Pentru ce vei folosi AnythingLLM?",
+      useCase: "Pentru ce vei folosi DocCursor?",
       useCaseWork: "Pentru muncă",
       useCasePersonal: "Pentru uz personal",
       useCaseOther: "Altele",
-      comment: "De unde ai aflat despre AnythingLLM?",
+      comment: "De unde ai aflat despre DocCursor?",
       commentPlaceholder:
         "Reddit, Twitter, GitHub, YouTube, etc. - Spune-ne cum ne-ai găsit!",
       skip: "Sari peste sondaj",
@@ -98,7 +98,7 @@ const TRANSLATIONS = {
     "experimental-features": "Funcții experimentale",
     contact: "Contact suport",
     "browser-extension": "Extensie browser",
-    "mobile-app": "AnythingLLM Mobile",
+    "mobile-app": "DocCursor Mobile",
     "community-hub": {
       title: "Centru comunitar",
       trending: "Descoperă tendințele",
@@ -166,7 +166,7 @@ const TRANSLATIONS = {
       add: "Adaugă mesaj nou",
       save: "Salvează mesajele",
       heading: "Explică-mi",
-      body: "beneficiile AnythingLLM",
+      body: "beneficiile DocCursor",
     },
     delete: {
       title: "Șterge spațiul de lucru",
@@ -255,7 +255,7 @@ const TRANSLATIONS = {
   vector: {
     title: "Baza de date vectorială",
     description:
-      "Acestea sunt credențialele și setările pentru modul în care funcționează instanța ta AnythingLLM. Este important să fie corecte și actuale.",
+      "Acestea sunt credențialele și setările pentru modul în care funcționează instanța ta DocCursor. Este important să fie corecte și actuale.",
     provider: {
       title: "Furnizor baza de date vectorială",
       description: "Nu este necesară configurarea pentru LanceDB.",
@@ -300,7 +300,7 @@ const TRANSLATIONS = {
   privacy: {
     title: "Confidențialitate & Gestionarea datelor",
     description:
-      "Aceasta este configurația ta pentru modul în care furnizorii terți conectați și AnythingLLM gestionează datele tale.",
+      "Aceasta este configurația ta pentru modul în care furnizorii terți conectați și DocCursor gestionează datele tale.",
     anonymous: "Telemetrie anonimă activată",
   },
   connectors: {
@@ -474,22 +474,22 @@ const TRANSLATIONS = {
       fetching: "Se preia...",
       "fetch-website": "Preluare site web",
       "privacy-notice":
-        "Aceste fișiere vor fi încărcate în procesorul de documente care rulează pe această instanță AnythingLLM. Aceste fișiere nu sunt trimise sau partajate cu o terță parte.",
+        "Aceste fișiere vor fi încărcate în procesorul de documente care rulează pe această instanță DocCursor. Aceste fișiere nu sunt trimise sau partajate cu o terță parte.",
     },
     pinning: {
       what_pinning: "Ce este fixarea documentelor?",
       pin_explained_block1:
-        "Când **fixezi** un document în AnythingLLM, vom injecta întregul conținut al documentului în fereastra de prompt pentru ca LLM-ul tău să-l înțeleagă pe deplin.",
+        "Când **fixezi** un document în DocCursor, vom injecta întregul conținut al documentului în fereastra de prompt pentru ca LLM-ul tău să-l înțeleagă pe deplin.",
       pin_explained_block2:
         "Acest lucru funcționează cel mai bine cu **modele cu context mare** sau fișiere mici care sunt critice pentru baza sa de cunoștințe.",
       pin_explained_block3:
-        "Dacă nu obții răspunsurile dorite de la AnythingLLM în mod implicit, atunci fixarea este o modalitate excelentă de a obține răspunsuri de calitate superioară dintr-un clic.",
+        "Dacă nu obții răspunsurile dorite de la DocCursor în mod implicit, atunci fixarea este o modalitate excelentă de a obține răspunsuri de calitate superioară dintr-un clic.",
       accept: "Ok, am înțeles",
     },
     watching: {
       what_watching: "Ce face vizualizarea unui document?",
       watch_explained_block1:
-        "Când **urmărești** un document în AnythingLLM, vom sincroniza *automat* conținutul documentului tău din sursa originală la intervale regulate. Acest lucru va actualiza automat conținutul în fiecare spațiu de lucru unde acest fișier este gestionat.",
+        "Când **urmărești** un document în DocCursor, vom sincroniza *automat* conținutul documentului tău din sursa originală la intervale regulate. Acest lucru va actualiza automat conținutul în fiecare spațiu de lucru unde acest fișier este gestionat.",
       watch_explained_block2:
         "Această funcție suportă în prezent conținutul online și nu va fi disponibilă pentru documentele încărcate manual.",
       watch_explained_block3_start:
@@ -630,7 +630,7 @@ const TRANSLATIONS = {
         edit_description: "Actualizați conținutul acestui memorie.",
         label: "Memorie",
         placeholder:
-          "De exemplu, numele utilizatorului este Joe, utilizatorul lucrează cu AnythingLLM, etc.",
+          "De exemplu, numele utilizatorului este Joe, utilizatorul lucrează cu DocCursor, etc.",
         create: "Creați",
         save: "Salvați",
         cancel: "Anula",
@@ -1281,7 +1281,7 @@ const TRANSLATIONS = {
         title: "Selecție inteligentă a abilităților",
         "beta-badge": "Beta",
         description:
-          "Permite utilizarea nelimitată a instrumentelor și reduce utilizarea token-urilor cu până la 80% pentru fiecare interogare – AnythingLLM selectează automat abilitățile potrivite pentru fiecare solicitare.",
+          "Permite utilizarea nelimitată a instrumentelor și reduce utilizarea token-urilor cu până la 80% pentru fiecare interogare – DocCursor selectează automat abilitățile potrivite pentru fiecare solicitare.",
         "max-tools": {
           title: "Max Tools",
           description:
@@ -1319,16 +1319,16 @@ const TRANSLATIONS = {
   customization: {
     interface: {
       title: "Preferințe UI",
-      description: "Setează preferințele UI pentru AnythingLLM.",
+      description: "Setează preferințele UI pentru DocCursor.",
     },
     branding: {
       title: "Branding & White-labeling",
       description:
-        "Personalizează-ți instanța AnythingLLM cu branding personalizat.",
+        "Personalizează-ți instanța DocCursor cu branding personalizat.",
     },
     chat: {
       title: "Chat",
-      description: "Setează preferințele de chat pentru AnythingLLM.",
+      description: "Setează preferințele de chat pentru DocCursor.",
       auto_submit: {
         title: "Trimite automat intrarea vocală",
         description:
@@ -1367,7 +1367,7 @@ const TRANSLATIONS = {
       "display-language": {
         title: "Limba de afișare",
         description:
-          "Selectează limba preferată pentru a reda interfața AnythingLLM - atunci când traducerile sunt disponibile.",
+          "Selectează limba preferată pentru a reda interfața DocCursor - atunci când traducerile sunt disponibile.",
       },
       logo: {
         title: "Logo brand",
@@ -1410,7 +1410,7 @@ const TRANSLATIONS = {
   api: {
     title: "Chei API",
     description:
-      "Cheile API permit deținătorului să acceseze și să gestioneze programatic această instanță AnythingLLM.",
+      "Cheile API permit deținătorului să acceseze și să gestioneze programatic această instanță DocCursor.",
     link: "Citește documentația API",
     generate: "Generează o nouă cheie API",
     empty: "Nu au fost găsite chei API",
@@ -1424,7 +1424,7 @@ const TRANSLATIONS = {
       close: "Închide",
       create: "Creează cheia API",
       helper:
-        "După creare, cheia API poate fi folosită pentru a accesa și configura programatic această instanță AnythingLLM.",
+        "După creare, cheia API poate fi folosită pentru a accesa și configura programatic această instanță DocCursor.",
       name: {
         label: "Nume",
         placeholder: "Integrare de producție",
@@ -1449,7 +1449,7 @@ const TRANSLATIONS = {
   llm: {
     title: "Preferința LLM",
     description:
-      "Acestea sunt credențialele și setările pentru furnizorul tău preferat de chat și embedding LLM. Este important ca aceste chei să fie actuale și corecte, altfel AnythingLLM nu va funcționa corect.",
+      "Acestea sunt credențialele și setările pentru furnizorul tău preferat de chat și embedding LLM. Este important ca aceste chei să fie actuale și corecte, altfel DocCursor nu va funcționa corect.",
     provider: "Furnizor LLM",
     providers: {
       azure_openai: {
@@ -1471,7 +1471,7 @@ const TRANSLATIONS = {
       "Acestea sunt credențialele și setările pentru furnizorul tău preferat de model de transcriere. Este important ca aceste chei să fie actuale și corecte, altfel fișierele media și audio nu vor fi transcrise.",
     provider: "Furnizor transcriere",
     "warn-start":
-      "Utilizarea modelului local Whisper pe mașini cu RAM sau CPU limitat poate bloca AnythingLLM la procesarea fișierelor media.",
+      "Utilizarea modelului local Whisper pe mașini cu RAM sau CPU limitat poate bloca DocCursor la procesarea fișierelor media.",
     "warn-recommend":
       "Recomandăm cel puțin 2GB de RAM și încărcarea fișierelor <10Mb.",
     "warn-end": "Modelul încorporat se va descărca automat la prima utilizare.",
@@ -1481,7 +1481,7 @@ const TRANSLATIONS = {
     "desc-start":
       "Atunci când utilizați un LLM care nu suportă nativ un motor de embedding - s-ar putea să fie necesar să specificați credențiale suplimentare pentru embedding text.",
     "desc-end":
-      "Embedding-ul este procesul de transformare a textului în vectori. Aceste credențiale sunt necesare pentru a transforma fișierele și prompturile dvs. într-un format pe care AnythingLLM îl poate utiliza pentru procesare.",
+      "Embedding-ul este procesul de transformare a textului în vectori. Aceste credențiale sunt necesare pentru a transforma fișierele și prompturile dvs. într-un format pe care DocCursor îl poate utiliza pentru procesare.",
     provider: {
       title: "Furnizor embedding",
     },
@@ -1522,7 +1522,7 @@ const TRANSLATIONS = {
     password: {
       title: "Protecție prin parolă",
       description:
-        "Protejează instanța AnythingLLM cu o parolă. Dacă o uiți, nu există metode de recuperare, deci asigură-te că o salvezi.",
+        "Protejează instanța DocCursor cu o parolă. Dacă o uiți, nu există metode de recuperare, deci asigură-te că o salvezi.",
       "password-label": "Parola instanței",
     },
   },
@@ -1536,7 +1536,7 @@ const TRANSLATIONS = {
   telegram: {
     title: "Bot pentru Telegram",
     description:
-      "Conectați instanța dumneavoastră AnythingLLM cu Telegram, astfel încât să puteți interacționa cu spațiile de lucru de pe orice dispozitiv.",
+      "Conectați instanța dumneavoastră DocCursor cu Telegram, astfel încât să puteți interacționa cu spațiile de lucru de pe orice dispozitiv.",
     setup: {
       step1: {
         title: "Pasul 1: Creați botul dumneavoastră Telegram",
