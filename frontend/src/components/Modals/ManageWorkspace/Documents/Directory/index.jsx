@@ -30,6 +30,8 @@ function Directory({
   moveToWorkspace,
   setLoadingMessage,
   loadingMessage,
+  indexFolder,
+  isEmbeddingActive = false,
 }) {
   const { t } = useTranslation();
   const [amountSelected, setAmountSelected] = useState(0);
@@ -270,6 +272,8 @@ function Directory({
                         toggleSelection={toggleSelection}
                         isSelected={isSelected}
                         autoExpanded={index === 0}
+                        indexFolder={indexFolder}
+                        isEmbeddingActive={isEmbeddingActive}
                       />
                     )
                 )

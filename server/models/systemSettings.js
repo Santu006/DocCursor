@@ -785,7 +785,19 @@ const SystemSettings = {
   currentLogoFilename: async function () {
     try {
       const setting = await this.get({ label: "logo_filename" });
-      return setting?.value || null;
+      const value = setting?.value || null;
+      const legacyLogoFilenames = [
+        "anything-llm.png",
+        "anything-llm-dark.png",
+        "anything-llm-invert.png",
+      ];
+
+      if (value && legacyLogoFilenames.includes(value)) {
+        await this._updateSettings({ logo_filename: "doccursor.png" });
+        return "doccursor.png";
+      }
+
+      return value;
     } catch (error) {
       console.error(error.message);
       return null;

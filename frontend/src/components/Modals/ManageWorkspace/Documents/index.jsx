@@ -1,5 +1,6 @@
 import { ArrowsDownUp } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import Workspace from "../../../../models/workspace";
 import System from "../../../../models/system";
 import showToast from "../../../../utils/toast";
@@ -8,6 +9,7 @@ import WorkspaceDirectory from "./WorkspaceDirectory";
 import { useWorkspaceEmbeddingProgress } from "@/EmbeddingProgressContext";
 
 export default function DocumentSettings({ workspace }) {
+  const { t } = useTranslation();
   const [highlightWorkspace, setHighlightWorkspace] = useState(false);
   const [availableDocs, setAvailableDocs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -149,6 +151,60 @@ export default function DocumentSettings({ workspace }) {
     setMovedItems([]);
   };
 
+  const indexFolder = async (folderName) => {
+    if (embeddingProgress) {
+      showToast(t("connectors.directory.index-folder-in-progress"), "info");
+      return;
+    }
+
+    const [localFiles, currentWorkspace] = await Promise.all([
+      System.localFiles(),
+      Workspace.bySlug(workspace.slug),
+    ]);
+
+    const indexedPaths = new Set(
+      (currentWorkspace?.documents ?? []).map((doc) => doc.docpath)
+    );
+
+    const folder = localFiles?.items?.find(
+      (f) => f.type === "folder" && f.name === folderName
+    );
+
+    const paths = (folder?.items ?? [])
+      .filter((file) => file.type === "file")
+      .map((file) => `${folderName}/${file.name}`)
+      .filter((path) => !indexedPaths.has(path));
+
+    if (paths.length === 0) {
+      showToast(t("connectors.directory.index-folder-empty"), "info");
+      return;
+    }
+
+    const embedPromise = Workspace.modifyEmbeddings(workspace.slug, {
+      adds: paths,
+    });
+    startEmbedding(workspace.slug, paths);
+
+    showToast(
+      t("connectors.directory.index-folder-started", { count: paths.length }),
+      "success"
+    );
+
+    embedPromise
+      .then(({ message }) => {
+        if (message) {
+          showToast(message, "error", { clear: true });
+        }
+      })
+      .catch((error) => {
+        showToast(
+          t("connectors.directory.index-folder-failed", { error }),
+          "error",
+          { clear: true }
+        );
+      });
+  };
+
   const moveSelectedItemsToWorkspace = () => {
     setHighlightWorkspace(false);
     setHasChanges(true);
@@ -238,6 +294,8 @@ export default function DocumentSettings({ workspace }) {
         setHighlightWorkspace={setHighlightWorkspace}
         moveToWorkspace={moveSelectedItemsToWorkspace}
         setLoadingMessage={setLoadingMessage}
+        indexFolder={indexFolder}
+        isEmbeddingActive={!!embeddingProgress}
       />
       <div className="upload-modal-arrow">
         <ArrowsDownUp className="text-white text-base font-bold rotate-90 w-11 h-11" />

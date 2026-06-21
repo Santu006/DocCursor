@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import FileRow from "../FileRow";
 import { CaretDown, FolderNotch } from "@phosphor-icons/react";
 import { middleTruncate } from "@/utils/directories";
@@ -11,7 +12,10 @@ export default function FolderRow({
   toggleSelection,
   isSelected,
   autoExpanded = false,
+  indexFolder,
+  isEmbeddingActive = false,
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(autoExpanded);
 
   const handleExpandClick = (event) => {
@@ -67,8 +71,19 @@ export default function FolderRow({
             </span>
           )}
         </div>
-        <p className="col-span-2 pl-3.5" />
-        <p className="col-span-2 pl-2" />
+        <div className="col-span-6 flex justify-end items-center pr-1">
+          <button
+            type="button"
+            disabled={isEmbeddingActive}
+            onClick={(event) => {
+              event.stopPropagation();
+              indexFolder?.(item.name);
+            }}
+            className="border-none text-[10px] font-semibold bg-white/10 light:bg-[#E0F2FE] h-[24px] px-2 rounded-md hover:bg-neutral-800/80 hover:text-white light:text-[#026AA2] light:hover:bg-[#026AA2] light:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/10"
+          >
+            {t("connectors.directory.index-folder")}
+          </button>
+        </div>
       </tr>
       {expanded && (
         <>

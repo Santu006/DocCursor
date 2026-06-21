@@ -1433,6 +1433,13 @@ const TRANSLATIONS = {
       deselect_all: "Deselect All",
       remove_selected: "Remove Selected",
       save_embed: "Save and Embed",
+      "index-folder": "Index Folder",
+      "index-folder-started": "Indexing {{count}} document(s) from folder.",
+      "index-folder-empty":
+        "No documents to index. This folder is empty or all files are already in the workspace.",
+      "index-folder-in-progress":
+        "Embedding is already in progress. Please wait for it to finish.",
+      "index-folder-failed": "Failed to index folder: {{error}}",
     },
     upload: {
       "processor-offline": "Document Processor Unavailable",

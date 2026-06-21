@@ -15,10 +15,11 @@ import { useSidebarToggle, ToggleSidebarButton } from "./SidebarToggle";
 import SearchBox from "./SearchBox";
 import { Tooltip } from "react-tooltip";
 import { createPortal } from "react-dom";
+import SidebarBrandMark from "@/components/SidebarBrandMark";
 
 export default function Sidebar() {
   const { user } = useUser();
-  const { logo } = useLogo();
+  const { logo, isCustomLogo } = useLogo();
   const sidebarRef = useRef(null);
   const { showSidebar, setShowSidebar, canToggleSidebar } = useSidebarToggle();
   const {
@@ -46,9 +47,9 @@ export default function Sidebar() {
           <div className="flex shrink-0 w-full justify-center my-[18px]">
             <div className="flex w-[250px] min-w-[250px]">
               <Link to={paths.home()} aria-label="Home">
-                <img
-                  src={logo}
-                  alt="Logo"
+                <SidebarBrandMark
+                  logo={logo}
+                  isCustomLogo={isCustomLogo}
                   className={`rounded max-h-[24px] object-contain transition-opacity duration-500 ${showSidebar ? "opacity-100" : "opacity-0"}`}
                 />
               </Link>
@@ -81,7 +82,7 @@ export default function Sidebar() {
 }
 
 export function SidebarMobileHeader() {
-  const { logo } = useLogo();
+  const { logo, isCustomLogo } = useLogo();
   const sidebarRef = useRef(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [showBgOverlay, setShowBgOverlay] = useState(false);
@@ -120,11 +121,11 @@ export function SidebarMobileHeader() {
           <List className="h-6 w-6" />
         </button>
         <div className="flex items-center justify-center flex-grow">
-          <img
-            src={logo}
-            alt="Logo"
-            className="block mx-auto h-6 w-auto"
-            style={{ maxHeight: "40px", objectFit: "contain" }}
+          <SidebarBrandMark
+            logo={logo}
+            isCustomLogo={isCustomLogo}
+            className="block mx-auto text-lg"
+            style={{ maxHeight: "40px", lineHeight: "40px" }}
           />
         </div>
         <div className="w-12"></div>
@@ -151,11 +152,11 @@ export function SidebarMobileHeader() {
             {/* Header Information */}
             <div className="flex w-full items-center justify-between gap-x-4">
               <div className="flex shrink-1 w-fit items-center justify-start">
-                <img
-                  src={logo}
-                  alt="Logo"
-                  className="rounded w-full max-h-[40px]"
-                  style={{ objectFit: "contain" }}
+                <SidebarBrandMark
+                  logo={logo}
+                  isCustomLogo={isCustomLogo}
+                  className="rounded w-full text-xl"
+                  style={{ maxHeight: "40px", lineHeight: "40px" }}
                 />
               </div>
               {(!user || user?.role !== "default") && (

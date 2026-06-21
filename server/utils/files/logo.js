@@ -6,6 +6,11 @@ const { SystemSettings } = require("../../models/systemSettings");
 const { normalizePath, isWithin } = require(".");
 const LOGO_FILENAME = "doccursor.png";
 const LOGO_FILENAME_DARK = "doccursor-dark.png";
+const LEGACY_LOGO_FILENAMES = [
+  "anything-llm.png",
+  "anything-llm-dark.png",
+  "anything-llm-invert.png",
+];
 
 /**
  * Checks if the filename is the default logo filename for dark or light mode.
@@ -13,7 +18,9 @@ const LOGO_FILENAME_DARK = "doccursor-dark.png";
  * @returns {boolean} Whether the filename is the default logo filename.
  */
 function isDefaultFilename(filename) {
-  return [LOGO_FILENAME, LOGO_FILENAME_DARK].includes(filename);
+  return [LOGO_FILENAME, LOGO_FILENAME_DARK, ...LEGACY_LOGO_FILENAMES].includes(
+    filename
+  );
 }
 
 function validFilename(newFilename = "") {
