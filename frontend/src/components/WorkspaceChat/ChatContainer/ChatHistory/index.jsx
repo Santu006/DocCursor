@@ -18,6 +18,7 @@ import ManageWorkspace from "../../../Modals/ManageWorkspace";
 import { ArrowDown } from "@phosphor-icons/react";
 import Chartable from "./Chartable";
 import ModelRouteNotification from "./ModelRouteNotification";
+import DocumentDiffReport from "./DocumentDiffReport";
 import Workspace from "@/models/workspace";
 import { useParams } from "react-router-dom";
 import paths from "@/utils/paths";
@@ -100,68 +101,38 @@ export default forwardRef(function (
   sendCommandRef.current = sendCommand;
 
   const saveEditedMessage = useCallback(
-    async ({
-      editedMessage,
-      chatId,
-      role,
-      attachments = [],
-      saveOnly = false,
-    }) => {
-      if (!editedMessage) return;
+    async ({ editedMessage, chatId, role, attachments = [] }) => {
+      if (!editedMessage || role !== "user") return;
       const currentHistory = historyRef.current;
+      const targetIdx = currentHistory.findIndex(
+        (msg) => msg.chatId === chatId && msg.role === "user"
+      );
+      if (targetIdx < 0) return;
 
-      if (role === "user" && saveOnly) {
-        const updatedHistory = [...currentHistory];
-        const targetIdx = currentHistory.findIndex(
-          (msg) => msg.chatId === chatId
-        );
-        if (targetIdx < 0) return;
-        updatedHistory[targetIdx].content = editedMessage;
-        updateHistory(updatedHistory);
-        await Workspace.updateChat(
-          workspace.slug,
-          threadSlug,
-          chatId,
-          editedMessage,
-          "user"
-        );
-        return;
-      }
+      const updatedHistory = currentHistory.slice(0, targetIdx + 1);
+      updatedHistory[targetIdx] = {
+        ...updatedHistory[targetIdx],
+        content: editedMessage,
+        isEdited: true,
+      };
 
-      if (role === "user") {
-        const updatedHistory = currentHistory.slice(
-          0,
-          currentHistory.findIndex((msg) => msg.chatId === chatId) + 1
-        );
-        updatedHistory[updatedHistory.length - 1].content = editedMessage;
-        await Workspace.deleteEditedChats(workspace.slug, threadSlug, chatId);
-        sendCommandRef.current({
-          text: editedMessage,
-          autoSubmit: true,
-          history: updatedHistory,
-          attachments,
-        });
-        return;
-      }
+      const prepared = await Workspace.prepareChatRerun(
+        workspace.slug,
+        threadSlug,
+        chatId,
+        editedMessage
+      );
+      if (!prepared) return;
 
-      if (role === "assistant") {
-        const updatedHistory = [...currentHistory];
-        const targetIdx = currentHistory.findIndex(
-          (msg) => msg.chatId === chatId && msg.role === role
-        );
-        if (targetIdx < 0) return;
-        updatedHistory[targetIdx].content = editedMessage;
-        updateHistory(updatedHistory);
-        await Workspace.updateChat(
-          workspace.slug,
-          threadSlug,
-          chatId,
-          editedMessage
-        );
-        return;
-      }
+      sendCommandRef.current({
+        text: editedMessage,
+        autoSubmit: true,
+        history: updatedHistory,
+        attachments,
+        rerunChatId: chatId,
+      });
     },
-    [workspace.slug, threadSlug, updateHistory]
+    [workspace.slug, threadSlug]
   );
 
   const forkThread = useCallback(
@@ -317,6 +288,18 @@ function buildMessages({
       return acc;
     }
 
+    if (props.type === "documentDiffReport") {
+      acc.push(
+        <DocumentDiffReport
+          key={`diff-${props.uuid}`}
+          report={props.report}
+          reviewId={props.reviewId}
+          workspaceSlug={workspace?.slug}
+        />
+      );
+      return acc;
+    }
+
     if (props.type === "toolApprovalRequest") {
       acc.push(
         <ToolApprovalRequest
@@ -382,6 +365,7 @@ function buildMessages({
           metrics={props.metrics}
           outputs={props.outputs}
           clarifyingQuestions={props.clarifyingQuestions}
+          isEdited={props.isEdited}
         />
       );
     }

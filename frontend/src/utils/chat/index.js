@@ -36,6 +36,18 @@ export default function handleChat(
     return;
   }
 
+  if (type === "documentDiffReport") {
+    _chatHistory.push({
+      type: "documentDiffReport",
+      uuid,
+      report: chatResult.report,
+      reviewId: chatResult.reviewId || null,
+      role: "assistant",
+    });
+    setChatHistory([..._chatHistory]);
+    return;
+  }
+
   if (type === "abort" || type === "statusResponse") {
     setLoadingResponse(false);
     setChatHistory([

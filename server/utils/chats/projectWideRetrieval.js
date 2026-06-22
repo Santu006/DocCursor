@@ -177,6 +177,9 @@ function formatIntelligenceHeader(intelligence) {
   if (!intelligence?.summary) return "";
 
   const lines = [`**Document summary:** ${String(intelligence.summary).trim()}`];
+  if (intelligence.documentType) {
+    lines.push(`**Document type:** ${intelligence.documentType}`);
+  }
   if (intelligence.category) {
     lines.push(`**Category:** ${intelligence.category}`);
   }
@@ -186,6 +189,13 @@ function formatIntelligenceHeader(intelligence) {
     : [];
   if (topics.length) {
     lines.push(`**Key topics:** ${topics.join(", ")}`);
+  }
+
+  const keywords = Array.isArray(intelligence.keywords)
+    ? intelligence.keywords.filter(Boolean)
+    : [];
+  if (keywords.length) {
+    lines.push(`**Keywords:** ${keywords.slice(0, 12).join(", ")}`);
   }
 
   return `${lines.join("\n")}\n\n`;

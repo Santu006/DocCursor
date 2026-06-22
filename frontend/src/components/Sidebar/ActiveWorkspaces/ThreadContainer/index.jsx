@@ -1,10 +1,10 @@
 import Workspace from "@/models/workspace";
 import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
-import { Plus, CircleNotch, Trash } from "@phosphor-icons/react";
+import { Link, useParams } from "react-router-dom";
+import { Plus, CircleNotch, Trash, Scales } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import ThreadItem from "./ThreadItem";
-import { useParams } from "react-router-dom";
 import useHoverMetaKey from "./hooks";
 export const THREAD_RENAME_EVENT = "renameThread";
 
@@ -159,6 +159,15 @@ export default function ThreadContainer({
         threads={threads}
         onDelete={handleDeleteAll}
       />
+      <Link
+        to={paths.workspace.reviews(workspace.slug)}
+        className="w-full relative flex h-[36px] items-center border-none hover:bg-[var(--theme-sidebar-thread-selected)] light:hover:bg-slate-300 rounded-lg text-theme-text-secondary hover:text-white"
+      >
+        <div className="flex w-full gap-x-2 items-center pl-4">
+          <Scales size={16} />
+          <span className="text-[13px]">Reviews</span>
+        </div>
+      </Link>
       <NewThreadButton workspace={workspace} />
     </div>
   );

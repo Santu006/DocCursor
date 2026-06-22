@@ -17,6 +17,11 @@ const {
   validWorkspaceAndThreadSlug,
 } = require("../utils/middleware/validWorkspace");
 const { WorkspaceChats } = require("../models/workspaceChats");
+const {
+  updateWorkspaceChatMessage,
+  prepareWorkspaceChatRerun,
+  getWorkspaceChatPromptHistory,
+} = require("../utils/chats/editMessage");
 const { convertToChatHistory } = require("../utils/helpers/chat/responses");
 const { getModelTag } = require("./utils");
 
@@ -240,22 +245,89 @@ function workspaceThreadEndpoints(app) {
         });
         if (!existingChat) throw new Error("Invalid chat.");
 
-        if (role === "user") {
-          await WorkspaceChats._update(existingChat.id, {
-            prompt: String(newText),
-          });
-        } else {
-          const chatResponse = safeJsonParse(existingChat.response, null);
-          if (!chatResponse) throw new Error("Failed to parse chat response");
-          await WorkspaceChats._update(existingChat.id, {
-            response: JSON.stringify({
-              ...chatResponse,
-              text: String(newText),
-            }),
-          });
-        }
+        await updateWorkspaceChatMessage({
+          existingChat,
+          newText: String(newText),
+          role,
+          userId: user?.id,
+        });
 
         response.sendStatus(200).end();
+      } catch (e) {
+        console.error(e.message, e);
+        response.sendStatus(500).end();
+      }
+    }
+  );
+
+  app.post(
+    "/workspace/:slug/thread/:threadSlug/prepare-chat-rerun",
+    [
+      validatedRequest,
+      flexUserRoleValid([ROLES.all]),
+      validWorkspaceAndThreadSlug,
+    ],
+    async (request, response) => {
+      try {
+        const { chatId, newPrompt = null } = reqBody(request);
+        if (!newPrompt || !String(newPrompt).trim())
+          throw new Error("Cannot re-run with empty prompt");
+
+        const user = await userFromSession(request, response);
+        const workspace = response.locals.workspace;
+        const thread = response.locals.thread;
+        const existingChat = await WorkspaceChats.get({
+          workspaceId: workspace.id,
+          thread_id: thread.id,
+          user_id: user?.id,
+          id: Number(chatId),
+        });
+        if (!existingChat) throw new Error("Invalid chat.");
+
+        await prepareWorkspaceChatRerun({
+          existingChat,
+          newPrompt: String(newPrompt),
+          userId: user?.id,
+          deleteClause: {
+            workspaceId: Number(workspace.id),
+            thread_id: Number(thread.id),
+            user_id: user?.id,
+          },
+        });
+
+        response.status(200).json({ success: true }).end();
+      } catch (e) {
+        console.error(e.message, e);
+        response.sendStatus(500).end();
+      }
+    }
+  );
+
+  app.get(
+    "/workspace/:slug/thread/:threadSlug/chat/:chatId/prompt-history",
+    [
+      validatedRequest,
+      flexUserRoleValid([ROLES.all]),
+      validWorkspaceAndThreadSlug,
+    ],
+    async (request, response) => {
+      try {
+        const user = await userFromSession(request, response);
+        const workspace = response.locals.workspace;
+        const thread = response.locals.thread;
+        const chatId = Number(request.params.chatId);
+        const existingChat = await WorkspaceChats.get({
+          workspaceId: workspace.id,
+          thread_id: thread.id,
+          user_id: user?.id,
+          id: chatId,
+        });
+        if (!existingChat) {
+          return response.status(404).json({ error: "Chat not found." });
+        }
+
+        const history = await getWorkspaceChatPromptHistory(chatId);
+        return response.status(200).json({ history });
       } catch (e) {
         console.error(e.message, e);
         response.sendStatus(500).end();

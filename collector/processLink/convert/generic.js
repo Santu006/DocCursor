@@ -93,6 +93,11 @@ async function scrapeGenericUrl({
     wordCount: content.split(" ").length,
     pageContent: content,
     token_count_estimate: tokenizeString(content),
+    documentStructure: JSON.stringify({
+      type: "url",
+      sourceUrl: link,
+      hostname: url.hostname,
+    }),
   };
 
   const document = writeToServerDocuments({

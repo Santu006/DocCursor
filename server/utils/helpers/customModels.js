@@ -197,6 +197,14 @@ async function openAiModels(apiKey = null) {
           organization: "OpenAi",
         },
         {
+          name: "gpt-4o-mini",
+          id: "gpt-4o-mini",
+          object: "model",
+          created: 1721172741,
+          owned_by: "openai",
+          organization: "OpenAi",
+        },
+        {
           name: "gpt-4",
           id: "gpt-4",
           object: "model",
@@ -267,6 +275,13 @@ async function openAiModels(apiKey = null) {
         organization: "Your Fine-Tunes",
       };
     });
+
+  // Always surface common chat models even if the live models.list() omits them.
+  for (const id of ["gpt-4o-mini", "gpt-4o"]) {
+    if (!gpts.some((model) => model.id === id)) {
+      gpts.unshift({ id, name: id, organization: "OpenAi" });
+    }
+  }
 
   // Api Key was successful so lets save it for future uses
   if ((gpts.length > 0 || customModels.length > 0) && !!apiKey)

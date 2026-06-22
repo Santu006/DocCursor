@@ -168,6 +168,7 @@ export default function ChatContainer({
     history = [],
     attachments = [],
     writeMode = "replace",
+    rerunChatId = null,
   } = {}) => {
     // If we are not auto-submitting, we can just emit the text to the prompt input.
     if (!autoSubmit) {
@@ -224,6 +225,7 @@ export default function ChatContainer({
           userMessage: text,
           attachments,
           animate: true,
+          rerunChatId,
         },
       ];
     } else {
@@ -340,6 +342,7 @@ export default function ChatContainer({
             setSocketId
           ),
         attachments,
+        rerunChatId: promptMessage?.rerunChatId ?? null,
       });
       return;
     }

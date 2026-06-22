@@ -46,6 +46,8 @@ const {
 } = require("./endpoints/utils/googleAgentSkillEndpoints");
 const { memoryEndpoints } = require("./endpoints/memory");
 const { intelligenceEndpoints } = require("./endpoints/intelligence");
+const { diffEndpoints } = require("./endpoints/diff");
+const { reviewsEndpoints } = require("./endpoints/reviews");
 const { httpLogger } = require("./middleware/httpLogger");
 const app = express();
 const apiRouter = express.Router();
@@ -106,6 +108,8 @@ outlookAgentEndpoints(apiRouter);
 googleAgentSkillEndpoints(apiRouter);
 memoryEndpoints(apiRouter);
 intelligenceEndpoints(apiRouter);
+diffEndpoints(apiRouter);
+reviewsEndpoints(apiRouter);
 // Externally facing embedder endpoints
 embeddedEndpoints(apiRouter);
 

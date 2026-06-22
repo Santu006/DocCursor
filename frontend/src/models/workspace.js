@@ -137,28 +137,52 @@ const Workspace = {
       return this.threads._updateChat(slug, threadSlug, chatId, newText, role);
     return this._updateChat(slug, chatId, newText, role);
   },
+  prepareChatRerun: async function (
+    slug = "",
+    threadSlug = "",
+    chatId,
+    newPrompt
+  ) {
+    if (!!threadSlug)
+      return this.threads._prepareChatRerun(slug, threadSlug, chatId, newPrompt);
+    return this._prepareChatRerun(slug, chatId, newPrompt);
+  },
+  getPromptHistory: async function (slug = "", threadSlug = "", chatId) {
+    if (!!threadSlug)
+      return this.threads._getPromptHistory(slug, threadSlug, chatId);
+    return this._getPromptHistory(slug, chatId);
+  },
   multiplexStream: async function ({
     workspaceSlug,
     threadSlug = null,
     prompt,
     chatHandler,
     attachments = [],
+    rerunChatId = null,
   }) {
     if (!!threadSlug)
       return this.threads.streamChat(
         { workspaceSlug, threadSlug },
         prompt,
         chatHandler,
-        attachments
+        attachments,
+        rerunChatId
       );
     return this.streamChat(
       { slug: workspaceSlug },
       prompt,
       chatHandler,
-      attachments
+      attachments,
+      rerunChatId
     );
   },
-  streamChat: async function ({ slug }, message, handleChat, attachments = []) {
+  streamChat: async function (
+    { slug },
+    message,
+    handleChat,
+    attachments = [],
+    rerunChatId = null
+  ) {
     const ctrl = new AbortController();
 
     // Listen for the ABORT_STREAM_EVENT key to be emitted by the client
@@ -172,7 +196,7 @@ const Workspace = {
 
     await fetchEventSource(`${API_BASE}/workspace/${slug}/stream-chat`, {
       method: "POST",
-      body: JSON.stringify({ message, attachments }),
+      body: JSON.stringify({ message, attachments, rerunChatId }),
       headers: baseHeaders(),
       signal: ctrl.signal,
       openWhenHidden: true,
@@ -449,6 +473,39 @@ const Workspace = {
       .catch((e) => {
         console.log(e);
         return false;
+      });
+  },
+  _prepareChatRerun: async function (slug = "", chatId, newPrompt) {
+    return await fetch(`${API_BASE}/workspace/${slug}/prepare-chat-rerun`, {
+      method: "POST",
+      headers: baseHeaders(),
+      body: JSON.stringify({ chatId, newPrompt }),
+    })
+      .then((res) => {
+        if (res.ok) return true;
+        throw new Error("Failed to prepare chat re-run.");
+      })
+      .catch((e) => {
+        console.log(e);
+        return false;
+      });
+  },
+  _getPromptHistory: async function (slug = "", chatId) {
+    return await fetch(
+      `${API_BASE}/workspace/${slug}/chat/${chatId}/prompt-history`,
+      {
+        method: "GET",
+        headers: baseHeaders(),
+      }
+    )
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch prompt history.");
+        return res.json();
+      })
+      .then((data) => data.history || [])
+      .catch((e) => {
+        console.log(e);
+        return [];
       });
   },
   deleteChat: async (chatId) => {

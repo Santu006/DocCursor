@@ -1533,7 +1533,12 @@ const TRANSLATIONS = {
     edit_prompt: "Edit prompt",
     edit_response: "Edit response",
     edit_info_user:
-      '"Submit" regenerates the AI response. "Save" updates your message only.',
+      "Save & Re-run updates your question and regenerates the response. Subsequent messages in this branch are removed.",
+    save_and_rerun: "Save & Re-run",
+    edited_label: "edited",
+    view_previous_version: "View Previous Version",
+    previous_versions: "Previous versions",
+    loading_previous_versions: "Loading...",
     edit_info_assistant:
       "Your changes will be saved directly to this response.",
     see_less: "See Less",

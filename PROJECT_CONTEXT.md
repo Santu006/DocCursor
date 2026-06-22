@@ -6,18 +6,33 @@
 
 ---
 
-## 1. Executive summary
+## 1. Product overview
 
 DocCursor enables organizations (law firms, CA/audit firms, consulting, compliance, HR, enterprises) to upload folder trees of business documents and **chat, analyze, compare, and report** across an entire project corpus.
 
-The system is built on a **two-layer index**:
+### Core capabilities (shipped)
+
+| Capability | How it works |
+|------------|--------------|
+| **Multi-format ingestion** | Unified `DocumentProcessor` pipeline (PDF, DOCX, PPTX, XLSX, CSV, MD, TXT, URLs) |
+| **Semantic search (RAG)** | LanceDB chunk vectors per workspace/project |
+| **Document intelligence** | Per-document LLM enrichment: summary, category, topics, keywords, confidence |
+| **Project-wide chat** | “Summarise all files”, “compare all documents”, fee/retainer extraction |
+| **Intelligence-aware retrieval** | DII summaries injected into project-wide context headers (Phase 3) |
+| **Workspace intelligence APIs** | List, filter, search, and overview rollup |
+
+### Two-layer index
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | **Chunk vector index** | LanceDB (per workspace) | Semantic retrieval, RAG, citations |
-| **Document intelligence index** | SQLite `document_intelligence` | Per-document summary, category, topics (Phase 1A) |
+| **Document intelligence index** | SQLite `document_intelligence` | Per-document summary, category, topics, keywords, structure hints |
 
-Retrieval today operates on **chunks** with project-wide structured context and coverage enforcement. The intelligence index is **write + read via API**; not yet wired into chat retrieval.
+### Target users
+
+- Law firms — contracts, retainers, fee agreements, matter files
+- CA / audit firms — financial statements, audit reports, compliance filings
+- Consulting & enterprises — policies, presentations, spreadsheets, project documentation
 
 ---
 
@@ -48,546 +63,576 @@ Retrieval today operates on **chunks** with project-wide structured context and 
 
 ```
 anything-llm/
-├── collector/          # Document parsing service (PDF, DOCX, XLSX, …)
-├── server/             # API, RAG, intelligence workers, Prisma, LanceDB
-├── frontend/           # React UI (DocCursor branding + project sidebar)
-├── embed/              # Embeddable chat widget
-├── docker/             # Container deployment
-├── locales/            # i18n (25+ locale files rebranded)
-└── package.json        # anything-llm@1.14.1
+├── collector/              # Document parsing + DocumentProcessor registry
+│   └── utils/documentProcessor/   # Phase 4 unified ingestion
+├── server/                 # API, RAG, intelligence workers, Prisma, LanceDB
+├── frontend/               # React UI (DocCursor branding + project sidebar)
+├── embed/                  # Embeddable chat widget
+├── examples/phase4/        # Sample uploads for multi-format testing
+├── docs/PHASE4_INGESTION.md
+├── docker/
+├── locales/
+└── package.json            # anything-llm@1.14.1
 ```
 
-### 2.3 Core pipelines
-
-#### Ingestion (parse only)
-
-```
-Upload / hotdir
-  → collector/processSingleFile
-  → JSON in server/storage/documents/{folder}/{uuid}.json
-  → pageContent + metadata (title, chunkSource, wordCount, …)
-```
-
-#### Embedding (chunk + vector)
-
-```
-Index folder / update-embeddings
-  → Document.addDocuments() OR embedding-worker.js (native embedder)
-  → fileData() loads JSON
-  → TextSplitter (1000 / 20 default)
-  → EmbedderEngine (NativeEmbedder default)
-  → LanceDB.addDocumentToNamespace(workspace.slug)
-  → workspace_documents + document_vectors rows
-  → DocumentIntelligence.createPending()   [Phase 1A]
-```
-
-#### Chat / retrieval
-
-```
-stream.js
-  → performWorkspaceSimilaritySearch() [projectWideRetrieval.js]
-  → mergeRetrievalIntoContext()
-  → applyProjectWideSystemPrompt() + coverage checklist
-  → compressMessages() → LLM stream
-  → sources[] attached to response (citations UI)
-```
-
-#### Document intelligence (Phase 1A)
-
-```
-createPending (status: pending)
-  → enrich-document-intelligence job (every 30s, batch 3)
-  → enrichDocument.js (summarizeContent if >12k chars → LLM JSON)
-  → document_intelligence (status: complete | failed)
-```
-
----
-
-## 3. Key architectural decisions
+### 2.3 Key architectural decisions
 
 | Decision | Rationale |
 |----------|-----------|
 | **Fork AnythingLLM, not greenfield** | Reuse collector, LanceDB, agent framework, embed pipeline |
-| **Workspace = Project** | Existing `workspaces.slug` maps to Lance namespace; no org model yet |
-| **LanceDB unchanged** | Chunk vectors stay in Lance; intelligence is parallel SQLite index |
+| **Workspace = Project** | `workspaces.slug` maps to Lance namespace; no org model yet |
+| **LanceDB unchanged** | Chunk vectors in Lance; intelligence is parallel SQLite index |
 | **Post-embed intelligence hook** | Never block embed SSE; async worker handles LLM latency |
-| **Single `document_intelligence` table (1A)** | No queue table; poll `status=pending`; stale `processing` recovery after 10 min |
-| **Project-wide retrieval in JS** | Regex intent detection, not LLM router — fast, deterministic |
-| **Structured context by document** | `## Document: {title}` blocks force per-document reasoning |
-| **Coverage enforcement checklist** | Explicit “Documents to cover” list in system prompt |
+| **Single `document_intelligence` table** | Poll `status=pending`; stale `processing` recovery after 10 min |
+| **Project-wide retrieval in JS** | Regex intent detection — fast, deterministic |
+| **DII + chunks in project-wide context** | Summaries for coverage; chunks for specific facts |
 | **Native embedder default** | Local `Xenova/all-MiniLM-L6-v2`; no API key for embeddings |
-| **Intelligence uses workspace LLM** | Same `chatProvider`/`chatModel` as chat; requires `OPEN_AI_KEY` for OpenAI |
-| **Frontend-only sidebar redesign** | No backend/schema changes for Projects / Recent Files UI |
-| **DocCursor rebrand (Phase 1)** | User-facing strings + logos; package names unchanged for compatibility |
+| **Intelligence uses dedicated LLM when configured** | `INTELLIGENCE_MODEL_PREF` overrides workspace chat model for enrichment only |
+| **DocumentProcessor registry** | Phase 4 wraps/enhances legacy converters behind one interface |
+| **OpenAI `globalThis.fetch`** | Fixes Node 22 + openai@4.95 `ERR_STREAM_PREMATURE_CLOSE` |
 
 ---
 
-## 4. File structure (custom / DocCursor-specific)
+## 3. Document ingestion pipeline
 
-### 4.1 Server — retrieval & intelligence
+### 3.1 End-to-end flow
+
+```
+Upload / URL / hotdir
+  → Processor selection (DocumentProcessor registry)
+  → Text extraction + documentStructure metadata
+  → JSON in server/storage/documents/{folder}/{uuid}.json
+  → User indexes folder (update-embeddings)
+  → TextSplitter → Embedder → LanceDB
+  → workspace_documents + document_vectors rows
+  → DocumentIntelligence.createPending()
+  → enrich-document-intelligence job (30s)
+  → document_intelligence (complete | failed)
+```
+
+### 3.2 Upload paths
+
+| Path | Entry | Output |
+|------|-------|--------|
+| **File upload** | `POST /workspace/:slug/upload` → collector `POST /process` | Parsed JSON in `storage/documents/` |
+| **URL upload** | `POST /workspace/:slug/upload-link` → `processLink` | JSON with `chunkSource: link://{url}` |
+| **Folder index** | `POST /workspace/:slug/update-embeddings` | Vectors + intelligence queue |
+| **Chat DnD** | `parseDocument` with `parseOnly` | Ephemeral parse for chat attachment |
+
+### 3.3 DocumentProcessor interface
+
+Location: `collector/utils/documentProcessor/`
+
+```javascript
+{
+  id: "docx",                    // processor id
+  extensions: [".docx"],         // file extensions handled
+  canProcess(extension, filename) {},
+  async process({ fullFilePath, filename, options, metadata }) {
+    return { success, reason, documents: [...] };
+  }
+}
+```
+
+**Routing:** `collector/processSingleFile/index.js` checks the registry first; unsupported extensions fall back to `SUPPORTED_FILETYPE_CONVERTERS` in `collector/utils/constants.js`.
+
+**Parsed document shape** (written to `storage/documents/`):
+
+| Field | Purpose |
+|-------|---------|
+| `pageContent` | Extracted text for chunking |
+| `title`, `docSource`, `chunkSource` | Metadata for RAG headers and citations |
+| `documentStructure` | JSON string — headings, columns, sheets, slides, URL (used in enrichment) |
+| `wordCount`, `token_count_estimate` | Sizing hints |
+
+### 3.4 Processor registry
+
+| Processor | Extensions | Structure captured |
+|-----------|------------|-------------------|
+| `PdfProcessor` | `.pdf` | Delegates to `asPDF/` (+ OCR fallback) |
+| `DocxProcessor` | `.docx` | Mammoth → markdown; heading hierarchy |
+| `MarkdownProcessor` | `.md` | `#` / `##` heading tree |
+| `TxtProcessor` | `.txt` | Plain text; detected section headings |
+| `CsvProcessor` | `.csv` | Column names, row count, schema summary prepended |
+| `XlsxProcessor` | `.xlsx` | Sheet names, headers, workbook summary; per-sheet JSON on embed |
+| `PptxProcessor` | `.pptx` | Slide titles, structured slide sections |
+| `UrlProcessor` | (via `processLink`) | `sourceUrl`, hostname in `documentStructure` |
+
+### 3.5 Legacy / additional collector formats
+
+Still routed via `constants.js` (not Phase 4 processors): HTML, JSON, ODT, ODP, EPUB, MBOX, images (OCR), audio/video (Whisper). Legacy `.doc` / `.xls` / `.ppt` not supported.
+
+### 3.6 Example test files
+
+`examples/phase4/` — `sample-policy.md`, `sample-expenses.csv`, `sample-notes.txt`
+
+---
+
+## 4. Document Intelligence design
+
+### 4.1 Lifecycle
+
+```
+embed success
+  → createPending (status: pending)
+  → claimPendingBatch (status: processing)
+  → enrichDocument.js
+      → load content via Document.content(docId)
+      → summarize if >12k chars (summarizeContent)
+      → LLM JSON classification
+  → markComplete | markFailed
+```
+
+### 4.2 Enrichment output (Phase 4)
+
+| Field | Source | Description |
+|-------|--------|-------------|
+| `summary` | LLM | 2–4 sentence factual overview |
+| `category` | LLM | One of 12 taxonomy values (below) |
+| `documentType` | LLM | Short label, e.g. “retainer agreement” |
+| `keyTopics` | LLM | JSON array, 3–8 topic labels |
+| `keywords` | LLM | JSON array, 5–12 search terms |
+| `confidenceScore` | LLM | 0–1 classification confidence |
+| `fileType` | Extension | pdf, docx, xlsx, md, csv, url, … |
+
+**Enrichment prompt** also receives `documentStructure` from collector metadata when present (sheet names, CSV columns, headings, etc.).
+
+### 4.3 Categories (Phase 4)
+
+```
+agreement, contract, policy, invoice, resume, presentation,
+spreadsheet, research_paper, technical_documentation,
+financial_report, legal_document, general
+```
+
+**Legacy mapping** (pre-Phase 4 rows): `filing` → `legal_document`, `correspondence` → `general`, `financial_statement` / `audit_report` → `financial_report`, `hr_document` → `resume`, `compliance` → `policy`, `other` → `general`.
+
+### 4.4 Key files
 
 | Path | Role |
 |------|------|
-| `server/utils/chats/projectWideRetrieval.js` | Project-wide search, balancing, structured context, coverage |
-| `server/utils/chats/stream.js` | Main chat orchestrator; wires retrieval + system prompt |
-| `server/models/documentIntelligence.js` | DII CRUD, claim batch, stale recovery, requeue failed |
-| `server/utils/intelligence/enrichDocument.js` | LLM enrichment: category, summary, keyTopics |
-| `server/jobs/enrich-document-intelligence.js` | Bree worker (30s poll) |
-| `server/endpoints/intelligence.js` | GET intelligence API |
+| `server/models/documentIntelligence.js` | CRUD, overview, search, batch claim, stale recovery |
+| `server/utils/intelligence/enrichDocument.js` | LLM classification + normalization |
+| `server/utils/intelligence/resolveIntelligenceLLM.js` | Provider/model resolution for enrichment |
+| `server/jobs/enrich-document-intelligence.js` | Bree worker (30s poll, batch 3) |
 | `server/scripts/backfill-intelligence.js` | Backfill + `--retry-failed` |
-| `server/utils/bootstrapEnv.js` | Standalone job/script env loading |
-| `server/__tests__/utils/chats/projectWideRetrieval.test.js` | 48 tests |
-| `server/__tests__/utils/intelligence/enrichDocument.test.js` | 9 tests |
+| `server/endpoints/intelligence.js` | REST API |
 
-### 4.2 Server — ingestion & vectors (inherited, touched lightly)
-
-| Path | Role |
-|------|------|
-| `server/models/documents.js` | Embed orchestration; intelligence hooks |
-| `server/jobs/embedding-worker.js` | Native embedder isolated process |
-| `server/utils/vectorDbProviders/lance/index.js` | LanceDB provider; `getDocumentChunkCounts()` |
-| `server/utils/TextSplitter/index.js` | Chunking |
-| `server/utils/EmbeddingEngines/native/index.js` | Default embedder |
-
-### 4.3 Frontend — DocCursor UI
-
-| Path | Role |
-|------|------|
-| `frontend/src/components/Sidebar/ActiveWorkspaces/index.jsx` | PROJECTS / CHATS sections |
-| `frontend/src/components/FolderSidebar/WorkspaceFolderTree.jsx` | Flat file list per project |
-| `frontend/src/components/FolderSidebar/RecentFilesSection.jsx` | Recent files (localStorage) |
-| `frontend/src/components/FolderSidebar/FileTypeIcon.jsx` | PDF/DOCX/XLSX/TXT icons |
-| `frontend/src/utils/workspaceDocumentsTree.js` | Tree flattening |
-| `frontend/src/utils/recentProjectFiles.js` | `doccursor_recent_project_files` cache |
-| `frontend/src/LogoContext.jsx` | DocCursor logo assets |
-
-### 4.4 Collector
-
-| Path | Role |
-|------|------|
-| `collector/processSingleFile/` | Extension → converter routing |
-| `collector/utils/constants.js` | Supported file types |
-| `collector/hotdir/` | Upload staging |
-
----
-
-## 5. Indexing strategy
-
-### 5.1 Document storage index (filesystem)
-
-| Store | Path | Contents |
-|-------|------|----------|
-| Parsed documents | `server/storage/documents/` | Collector JSON (`pageContent`, metadata) |
-| Vector cache | `server/storage/vector-cache/` | Cached chunk embeddings per file path |
-| Upload staging | `collector/hotdir/` | Raw uploads before parse |
-
-**Folder indexing (UI):** `ManageWorkspace/Documents/index.jsx` → `indexFolder()` → `POST /workspace/:slug/update-embeddings` with all JSON paths in folder.
-
-### 5.2 Vector index (LanceDB)
-
-| Aspect | Detail |
-|--------|--------|
-| **Location** | `server/storage/lancedb/` |
-| **Namespace** | One table per `workspace.slug` |
-| **Row schema** | `{ id, vector, text, title, …metadata }` |
-| **Mapping** | `document_vectors` table: `docId` ↔ Lance `vectorId` |
-| **Search** | `performSimilaritySearch()` — cosine similarity, optional rerank |
-| **Default topN** | 4 per workspace (`workspaces.topN`) |
-| **Project-wide topN** | 40 candidates → threshold filter → per-doc balance |
-
-### 5.3 Document intelligence index (SQLite) — Phase 1A
-
-| Aspect | Detail |
-|--------|--------|
-| **Table** | `document_intelligence` |
-| **Granularity** | 1 row per embedded document (`docId` unique) |
-| **Lifecycle** | `pending` → `processing` → `complete` \| `failed` |
-| **Trigger** | `createPending()` after successful embed |
-| **Enrichment** | Background worker + optional manual job run |
-| **Not yet used in** | Chat retrieval, metadata search, agents |
-
-### 5.4 Planned indexes (future)
-
-| Phase | Index | Purpose |
-|-------|-------|---------|
-| 1B | `dates`, `monetaryAmounts`, `entities` columns | Structured extraction |
-| 1C | `obligations`, `risks` columns | Domain fields |
-| 2 | `document_intelligence_fields` table | SQL metadata search |
-| 3 | Wire DII into `projectWideRetrieval` | Summary in context headers |
-
----
-
-## 6. Chunking strategy
-
-### 6.1 Splitter
-
-- **Engine:** LangChain `RecursiveCharacterTextSplitter`
-- **Defaults:** `chunkSize = 1000` characters, `chunkOverlap = 20`
-- **Overrides:** `system_settings.text_splitter_chunk_size` / `text_splitter_chunk_overlap`
-- **Cap:** Cannot exceed embedder `embeddingMaxChunkLength` (1000 for default native model)
-
-### 6.2 Chunk metadata header
-
-Each chunk is prefixed with:
-
-```xml
-<document_metadata>
-sourceDocument: {title}
-published: {timestamp}
-</document_metadata>
-```
-
-Optional `chunkSource` → `source` field in header.
-
-### 6.3 Project-wide chunk balancing
-
-After retrieving up to 40 candidates:
-
-| Document size (chunks in corpus) | Max chunks per doc in context |
-|-------------------------------|--------------------------------|
-| < 10 | All that pass threshold |
-| 10–30 | 5 |
-| > 30 | 8 |
-
-Factual extraction queries use **similarity threshold 0.15** (vs workspace default 0.25).
-
-Chunks are then **grouped by document** into structured context (not flat `[CONTEXT i]` interleaving).
-
----
-
-## 7. Embedding model
-
-| Setting | Default |
-|---------|---------|
-| **Engine** | `native` (`EMBEDDING_ENGINE` unset) |
-| **Model** | `Xenova/all-MiniLM-L6-v2` |
-| **Max chunk length** | 1000 chars |
-| **Max concurrent chunks** | 25 |
-| **Alternatives** | `Xenova/nomic-embed-text-v1`, `MintplexLabs/multilingual-e5-small` |
-| **Other engines** | OpenAI, Ollama, Azure, Cohere, Gemini, etc. |
-
-**Native embed path:** `embedding-worker.js` runs in isolated child process (OOM protection) via `EmbeddingWorkerManager`.
-
-**Vector DB:** LanceDB default (`VECTOR_DB=lancedb`). Pinecone, Chroma, pgvector, Qdrant, etc. supported via same interface.
-
----
-
-## 8. Database schema
-
-### 8.1 Engine
-
-- **SQLite:** `server/storage/anythingllm.db`
-- **ORM:** Prisma (`server/prisma/schema.prisma`)
-- **Vectors:** Stored in LanceDB, **not** in SQLite
-
-### 8.2 Core tables
-
-#### `workspaces` (project)
-
-| Column | Notes |
-|--------|-------|
-| `slug` | Unique; LanceDB namespace |
-| `topN` | Default 4 chunks retrieved |
-| `similarityThreshold` | Default 0.25 |
-| `chatProvider`, `chatModel` | Workspace LLM |
-| `openAiPrompt` | System prompt |
-| `vectorSearchMode` | `default` \| `rerank` |
-
-#### `workspace_documents` (embed registry)
-
-| Column | Notes |
-|--------|-------|
-| `docId` | UUID; links to Lance chunks |
-| `filename`, `docpath` | Logical path under `documents/` |
-| `metadata` | JSON string from collector |
-| `pinned`, `watched` | Chat / sync flags |
-
-#### `document_vectors` (chunk mapping)
-
-| Column | Notes |
-|--------|-------|
-| `docId` | FK logical to workspace_documents |
-| `vectorId` | Lance row UUID |
-
-#### `document_intelligence` (Phase 1A) ✨
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | Int PK | |
-| `docId` | String UNIQUE | 1:1 with embedded doc |
-| `workspaceId` | Int FK | CASCADE delete |
-| `filename` | String | Display name |
-| `fileType` | String | Extension: pdf, docx, xlsx, … |
-| `category` | String? | LLM-assigned enum |
-| `summary` | Text? | 2–4 sentence summary |
-| `keyTopics` | String? | JSON array |
-| `status` | String | pending \| processing \| complete \| failed |
-| `error` | String? | Last failure message |
-| `enrichedAt` | DateTime? | |
-| `createdAt`, `lastUpdatedAt` | DateTime | |
-
-**Migration:** `server/prisma/migrations/20260622160311_document_intelligence/`
-
-#### `workspace_chats`
-
-Chat history; `response` JSON includes `text`, `sources[]`, `metrics`.
-
-### 8.3 Valid intelligence categories
-
-`contract`, `agreement`, `invoice`, `policy`, `filing`, `correspondence`, `financial_statement`, `audit_report`, `hr_document`, `compliance`, `presentation`, `spreadsheet`, `other`
-
----
-
-## 9. API design
-
-### 9.1 Base
-
-- **Prefix:** `/api`
-- **Auth:** `validatedRequest` + workspace membership (`validWorkspaceSlug`)
-
-### 9.2 Intelligence endpoints (Phase 1A)
-
-| Method | Route | Response |
-|--------|-------|----------|
-| `GET` | `/api/workspace/:slug/intelligence/status` | `{ status: { total, pending, processing, complete, failed } }` |
-| `GET` | `/api/workspace/:slug/intelligence` | `{ intelligence: [...] }` — query: `?status=&limit=&offset=` |
-| `GET` | `/api/workspace/:slug/intelligence/:docId` | `{ intelligence: { ... } }` |
-
-### 9.3 Core workspace / chat endpoints (inherited)
-
-| Method | Route | Purpose |
-|--------|-------|---------|
-| `POST` | `/api/workspace/:slug/update-embeddings` | Add/remove embedded docs |
-| `POST` | `/api/workspace/:slug/upload` | Upload to hotdir + parse |
-| `POST` | `/api/workspace/:slug/stream-chat` | SSE chat with RAG |
-| `GET` | `/api/system/local-files` | File picker tree |
-
-### 9.4 Planned APIs (not implemented)
-
-| Phase | Route | Purpose |
-|-------|-------|---------|
-| 2 | `POST /workspace/:slug/intelligence/search` | Metadata filters |
-| 2 | `GET /workspace/:slug/intelligence?category=&dateFrom=` | Field filters |
-| 1B+ | `POST /workspace/:slug/intelligence/:docId/re-enrich` | Manual retry |
-
----
-
-## 10. Retrieval & prompt assembly (current)
-
-### 10.1 Query classification (`projectWideRetrieval.js`)
-
-| Intent | Detection | Behavior |
-|--------|-----------|----------|
-| Project-wide | “summarize all”, “all PDFs”, “compare documents” | topN=40, structured context |
-| Factual extraction | “list every monetary amount”, “all dates” | threshold 0.15 |
-| Standard | Everything else | workspace topN (4), fillSourceWindow |
-
-### 10.2 Context format (project-wide)
-
-```markdown
-## Document: TMC0058.pdf
-
-<chunk text>
-
-## Document: RETAINER AGREEMENT-2.pdf
-
-<chunk text>
-```
-
-Wrapped in `[CONTEXT 0]` by OpenAI `#appendContext()`.
-
-### 10.3 System prompt additions (project-wide)
-
-- Analyze every document separately
-- One table row per document
-- “Not specified” for missing data
-- Ignore template placeholders (`[dollar amount]`, `____`)
-- **Coverage checklist:** explicit bullet list of every document in context
-
-### 10.4 Citations
-
-- `sources[]` = all retrieved chunks (not LLM-selected)
-- Frontend `combineLikeSources()` groups by `title` → citation icons per PDF
-
----
-
-## 11. Supported file types
-
-| Type | Collector converter |
-|------|---------------------|
-| PDF | `asPDF/` (+ OCR fallback) |
-| DOCX | `asDocx.js` |
-| XLSX | `asXlsx.js` |
-| CSV, TXT, MD, HTML, JSON | `asTxt.js` |
-| PPTX, ODT, ODP | `asOfficeMime.js` |
-| Images | `asImage.js` (OCR) |
-| Audio/Video | `asAudio.js` (Whisper) |
-
-**Future:** EML, MSG, scanned PDF OCR pipeline, ZIP archives.
-
----
-
-## 12. Background workers
-
-| Job | Interval | Enabled when |
-|-----|----------|--------------|
-| `cleanup-orphan-documents` | 12h | Always |
-| `cleanup-generated-files` | 8h | Always |
-| `extract-memories` | 3h | `memory_auto_extraction` setting |
-| `enrich-document-intelligence` | 30s | `DOCUMENT_INTELLIGENCE_ENABLED !== false` |
-| `sync-watched-documents` | 1h | Experimental live sync |
-| `embedding-worker` | On-demand | Native embedder batch |
-
-**Intelligence worker env:**
+### 4.5 Worker configuration
 
 | Variable | Default |
 |----------|---------|
 | `DOCUMENT_INTELLIGENCE_ENABLED` | `true` |
 | `INTELLIGENCE_POLL_INTERVAL` | `30s` |
 | `INTELLIGENCE_BATCH_SIZE` | `3` |
+| `INTELLIGENCE_MODEL_PREF` | *(unset — falls back to workspace `chatModel`)* |
+| `INTELLIGENCE_LLM_PROVIDER` | *(unset — falls back to workspace `chatProvider`)* |
 
 ---
 
-## 13. Environment variables (key)
+## 5. Supported formats summary
 
-| Variable | Purpose |
-|----------|---------|
-| `SERVER_PORT` | 3001 |
-| `LLM_PROVIDER`, `OPEN_AI_KEY`, `OPEN_MODEL_PREF` | Chat + intelligence LLM |
-| `EMBEDDING_ENGINE`, `EMBEDDING_MODEL_PREF` | Embedder selection |
-| `VECTOR_DB` | `lancedb` (default) |
-| `STORAGE_DIR` | Override storage root |
-| `DOCUMENT_INTELLIGENCE_ENABLED` | Intelligence worker toggle |
-| `COLLECTOR_PORT` | 8888 |
+| Format | Ingestion | Structure | Intelligence | Chat RAG |
+|--------|-----------|-----------|--------------|----------|
+| **PDF** | ✅ PdfProcessor | Page text (+ OCR) | ✅ | ✅ |
+| **DOCX** | ✅ DocxProcessor | Headings | ✅ | ✅ |
+| **PPTX** | ✅ PptxProcessor | Slide titles | ✅ | ✅ |
+| **XLSX** | ✅ XlsxProcessor | Sheets, headers | ✅ | ✅ (per sheet) |
+| **CSV** | ✅ CsvProcessor | Column schema | ✅ | ✅ |
+| **MD** | ✅ MarkdownProcessor | Heading hierarchy | ✅ | ✅ |
+| **TXT** | ✅ TxtProcessor | Section headings | ✅ | ✅ |
+| **URLs** | ✅ processLink | Source URL | ✅ | ✅ |
 
-**Note:** Intelligence enrichment requires `OPEN_AI_KEY` when workspace uses OpenAI. Set via **Settings → LLM** or `server/.env.development`.
+**Not yet:** EML, MSG, ZIP archives, legacy `.doc` / `.xls` / `.ppt`.
 
 ---
 
-## 14. Test workspaces & validation
+## 6. Database schema
 
-**Workspace `santosh`:** 3 PDFs (53 Lance chunks total)
+### 6.1 Engine
 
-| Document | Intelligence expected |
-|----------|----------------------|
-| `TMC0058.pdf` | Real monetary amounts in content |
-| `Basic-Fee-Agreement-…pdf` | Template placeholders |
-| `RETAINER AGREEMENT-2.pdf` | `[dollar amount]` placeholders |
+- **SQLite:** `server/storage/anythingllm.db`
+- **ORM:** Prisma (`server/prisma/schema.prisma`)
+- **Vectors:** LanceDB only — not in SQLite
 
-**Validation commands:**
+### 6.2 `document_intelligence` ✨
 
-```bash
-# Migration
-cd server && npx prisma migrate dev --name document_intelligence
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Int PK | |
+| `docId` | String UNIQUE | 1:1 with `workspace_documents` |
+| `workspaceId` | Int FK | CASCADE delete |
+| `filename` | String | Display name |
+| `fileType` | String | Extension: pdf, docx, xlsx, md, csv, … |
+| `category` | String? | Phase 4 taxonomy |
+| `documentType` | String? | Short human label |
+| `summary` | Text? | 2–4 sentences |
+| `keyTopics` | String? | JSON array |
+| `keywords` | String? | JSON array (Phase 4) |
+| `confidenceScore` | Float? | 0–1 (Phase 4) |
+| `status` | String | pending \| processing \| complete \| failed |
+| `error` | String? | Last failure message |
+| `enrichedAt` | DateTime? | |
+| `createdAt`, `lastUpdatedAt` | DateTime | |
 
-# Tests
-npx jest server/__tests__/utils/intelligence/enrichDocument.test.js
-npx jest server/__tests__/utils/chats/projectWideRetrieval.test.js
+**Indexes:** `(workspaceId)`, `(workspaceId, status)`, `(workspaceId, category)`
 
-# Backfill + retry
-node server/scripts/backfill-intelligence.js --workspace=santosh --retry-failed
-node server/jobs/enrich-document-intelligence.js
+**Migrations:**
+- `20260622160311_document_intelligence` — initial table
+- `20260623120000_document_intelligence_phase4` — `documentType`, `keywords`, `confidenceScore`, category index
 
-# DB check
-sqlite3 server/storage/anythingllm.db \
-  "SELECT filename, status, category FROM document_intelligence;"
+### 6.3 Other core tables
+
+| Table | Role |
+|-------|------|
+| `workspaces` | Project; `slug` = Lance namespace; `chatProvider`, `chatModel`, `topN`, `similarityThreshold` |
+| `workspace_documents` | Embed registry; `metadata` JSON from collector |
+| `document_vectors` | `docId` ↔ Lance `vectorId` |
+| `workspace_chats` | History; `response` includes `sources[]`, `metrics` |
+
+### 6.4 Filesystem stores
+
+| Path | Contents |
+|------|----------|
+| `server/storage/documents/` | Parsed collector JSON |
+| `server/storage/lancedb/{slug}.lance` | Chunk vectors |
+| `server/storage/vector-cache/` | Cached embeddings |
+| `collector/hotdir/` | Upload staging |
+
+---
+
+## 7. API endpoints
+
+**Base:** `/api` · **Auth:** `validatedRequest` + `validWorkspaceSlug`
+
+### 7.1 Intelligence (DocCursor)
+
+| Method | Route | Query / body | Response |
+|--------|-------|--------------|----------|
+| `GET` | `/workspace/:slug/intelligence/status` | — | `{ status: { total, pending, processing, complete, failed } }` |
+| `GET` | `/workspace/:slug/intelligence/overview` | — | `{ overview: { documents, categories[], topTopics[], fileTypes, embeddedDocuments, intelligence } }` |
+| `GET` | `/workspace/:slug/intelligence/search` | `?q=&limit=` | `{ query, intelligence: [...] }` |
+| `GET` | `/workspace/:slug/intelligence` | `?status=&category=&limit=&offset=` | `{ intelligence: [...] }` |
+| `GET` | `/workspace/:slug/intelligence/:docId` | — | `{ intelligence: { ... } }` |
+
+### 7.2 Workspace / chat (inherited)
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| `POST` | `/workspace/:slug/upload` | Upload + parse |
+| `POST` | `/workspace/:slug/upload-link` | URL ingestion |
+| `POST` | `/workspace/:slug/update-embeddings` | Add/remove embedded docs |
+| `POST` | `/workspace/:slug/stream-chat` | SSE chat with RAG |
+| `GET` | `/system/local-files` | File picker tree |
+| `GET` | `/system/document-processing-status` | Collector health |
+
+### 7.3 Planned APIs
+
+| Route | Purpose |
+|-------|---------|
+| `POST /workspace/:slug/intelligence/:docId/re-enrich` | Manual re-enrich |
+| `POST /workspace/:slug/intelligence/search` (advanced) | Structured metadata filters (Phase 2) |
+
+---
+
+## 8. Workspace retrieval logic
+
+### 8.1 Pipeline (`stream.js`)
+
+```
+streamChatWithWorkspace
+  → performWorkspaceSimilaritySearch()   [projectWideRetrieval.js]
+  → mergeRetrievalIntoContext()
+  → applyProjectWideSystemPrompt() + coverage checklist
+  → LLM stream → sources[] for citations
 ```
 
+### 8.2 Query classification
+
+| Intent | Detection examples | Behavior |
+|--------|-------------------|----------|
+| **Project-wide** | “summarise all files”, “compare all documents”, “all agreements” | topN=40, structured context, DII headers |
+| **Factual extraction** | “list every monetary amount”, “all dates” | threshold 0.15 |
+| **Standard** | Everything else | workspace `topN` (default 4) |
+
+**Note:** British `summarise` and generic “all files” are supported. Project-wide uses **0.15 similarity threshold** (not 0.25) because generic queries embed poorly against legal text.
+
+### 8.3 Project-wide retrieval steps
+
+1. Vector search with `topN=40`, `similarityThreshold=0` at Lance layer
+2. Filter by `PROJECT_WIDE_SIMILARITY_THRESHOLD` (0.15)
+3. `ensureAtLeastOneChunkPerDocument` — every doc in candidate set gets ≥1 chunk
+4. `balanceChunksByDocument` — dynamic per-doc caps (<10: all, 10–30: 5, >30: 8)
+5. `resolveIntelligenceByTitles` — load completed DII rows
+6. `buildStructuredDocumentContext` — inject summary headers + chunks
+
+### 8.4 Project-wide context format (Phase 3)
+
+```markdown
+## Document: RETAINER AGREEMENT-2.pdf
+
+**Document summary:** Sample retainer agreement between client and attorney…
+**Document type:** retainer agreement
+**Category:** agreement
+**Key topics:** legal representation, attorney fees, retainer funds
+**Keywords:** trust account, withdrawal, Oregon
+
+<retrieved chunk text>
+```
+
+### 8.5 System prompt additions (project-wide)
+
+- Analyze every document separately
+- One table row per document in comparisons
+- “Not specified” for missing data
+- Ignore template placeholders (`[dollar amount]`, `____`)
+- **Coverage checklist:** explicit bullet list of every document in context
+
+### 8.6 Citations
+
+- `sources[]` = all retrieved chunks (not LLM-selected)
+- Frontend `combineLikeSources()` groups by `title`
+
+### 8.7 Chunking
+
+- LangChain `RecursiveCharacterTextSplitter`
+- Defaults: **1000** chars, **20** overlap
+- Each chunk prefixed with `<document_metadata>` (sourceDocument, published)
+
 ---
 
-## 15. Pending tasks
+## 9. OpenAI integration
 
-### 15.1 Phase 1 — Document Intelligence Index (in progress)
+### 9.1 Usage
 
-| Task | Status |
-|------|--------|
-| 1A: `document_intelligence` table + worker + API | ✅ Implemented |
-| 1A: `OPEN_AI_KEY` configured in all environments | ⏳ User action |
-| 1A: Intelligence UI badges in file picker | ⏳ Pending |
-| 1B: `dates`, `monetaryAmounts`, `entities` extraction | ⏳ Planned |
-| 1B: `contentHash` idempotent re-enrich | ⏳ Planned |
-| 1C: `obligations`, `risks` extraction | ⏳ Planned |
+| Feature | Provider | Config |
+|---------|----------|--------|
+| **Chat** | Workspace `chatProvider` / `chatModel` | Settings → LLM or `server/.env.development` |
+| **Document intelligence** | `INTELLIGENCE_LLM_PROVIDER` + `INTELLIGENCE_MODEL_PREF`, else workspace chat LLM | `server/.env.development` |
+| **Embeddings** | Native embedder (default) | No OpenAI key required |
 
-### 15.2 Phase 2 — Metadata search
+### 9.2 Required configuration
+
+```bash
+# server/.env.development
+LLM_PROVIDER='openai'
+OPEN_AI_KEY=sk-...
+OPEN_MODEL_PREF='gpt-4o-mini'
+
+# Stronger model for one-time document enrichment (optional)
+INTELLIGENCE_MODEL_PREF='gpt-4o'
+```
+
+### 9.3 Node 22 compatibility fix
+
+**Problem:** `openai@4.95` default fetch wrapper causes `ERR_STREAM_PREMATURE_CLOSE` on Node 22.
+
+**Fix** in `server/utils/AiProviders/openAi/index.js`:
+
+```javascript
+this.openai = new OpenAIApi({
+  apiKey: process.env.OPEN_AI_KEY,
+  fetch: globalThis.fetch,
+});
+```
+
+**Fallback:** `getChatCompletion` falls back from Responses API to `chat.completions` on failure.
+
+### 9.4 SDK timeout patch
+
+`server/utils/boot/patchSdkTimeouts.js` — extends undici/OpenAI/Anthropic timeouts for long document operations (600s).
+
+### 9.5 Security note
+
+Rotate API keys if exposed in chat or logs. `server/.env.development` is gitignored.
+
+---
+
+## 10. Completed phases
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| **Rebrand** | DocCursor UI, projects sidebar, recent files | ✅ |
+| **Project-wide retrieval** | Regex intent, structured context, coverage checklist, chunk balancing | ✅ |
+| **Phase 1A** | `document_intelligence` table, worker, enrichment, REST API | ✅ |
+| **Phase 3** | DII summaries injected into `buildStructuredDocumentContext()` | ✅ |
+| **Phase 4** | DocumentProcessor registry, multi-format structure extraction, expanded DII fields, overview/search APIs | ✅ |
+| **Phase 5** | Document diff & change analysis — section matching, semantic diff, LLM report, API + chat UI | ✅ |
+| **Retrieval fixes** | 0.15 project-wide threshold, per-doc coverage guarantee, `summarise` spelling | ✅ |
+| **OpenAI fixes** | `globalThis.fetch`, chat.completions fallback | ✅ |
+
+### Validation workspace: `santosh`
+
+3 PDFs · 53 Lance chunks · intelligence `complete` for all:
+
+| Document | Notes |
+|----------|-------|
+| `TMC0058.pdf` | Willick Law Group; real monetary amounts |
+| `Basic-Fee-Agreement-…pdf` | Limited-scope template |
+| `RETAINER AGREEMENT-2.pdf` | Oregon OSB sample |
+
+**Validated queries:** “summarise all files”, “compare all documents”, “compare retainer terms across all three documents”
+
+---
+
+## 11. Known limitations
+
+| Limitation | Impact | Workaround |
+|------------|--------|------------|
+| **Pre-Phase 4 rows lack new fields** | `documentType`, `keywords`, `confidenceScore` empty on old enrichments | `--retry-failed` backfill |
+| **Intelligence UI badges** | No file-picker status chips yet | Use API / sqlite |
+| **Standard (non-project-wide) chat** | DII summaries not injected; chunks only | Use “summarise all…” or “compare all…” |
+| **CSV/XLSX NL querying** | Schema summary in text; no SQL engine | Ask specific questions in chat |
+| **PPTX slide detection** | Heuristic split, not native slide parser | Acceptable for text extraction |
+| **URL ingestion** | Separate `processLink` path, not file registry | Use upload-link UI |
+| **No org multi-tenancy** | Workspace = project only | Single-tenant deployments |
+| **SQLite at scale** | Fine for hundreds–low thousands of docs | PostgreSQL path planned |
+| **Citations ≠ full coverage** | Sources = retrieved chunks only | Coverage checklist in system prompt |
+| **Legacy Office** | No `.doc`, `.xls`, `.ppt` | Convert to DOCX/XLSX/PPTX |
+| **Agents / reports** | No domain-specific agents or report export yet | Chat + tables manually |
+
+---
+
+## 12. Roadmap (next items)
+
+### 12.1 Phase 1 — Intelligence depth
+
+- [ ] Intelligence UI badges in file picker (pending / complete / failed)
+- [ ] `POST /intelligence/:docId/re-enrich` HTTP endpoint
+- [ ] **1B:** `dates`, `monetaryAmounts`, `entities` columns + extraction
+- [ ] **1B:** `contentHash` idempotent re-enrich
+- [ ] **1C:** `obligations`, `risks` extraction
+
+### 12.2 Phase 2 — Metadata search
 
 - [ ] `document_intelligence_fields` normalized table
-- [ ] `POST /intelligence/search` API
-- [ ] Pre-filter retrieval before vector search
+- [ ] Pre-filter vector retrieval by category/keywords
 - [ ] UI filter chips (category, date, amount)
+- [ ] Hybrid keyword retrieval for `$` / dates
 
-### 15.3 Phase 3 — Multi-document analysis
+### 12.3 Phase 3 — Multi-document analysis (remaining)
 
-- [ ] Inject DII summaries into `buildStructuredDocumentContext()`
-- [ ] `compareDocuments()` / `findConflicts()` utilities
-- [ ] Workspace-level intelligence rollup
+- [x] Inject DII summaries into project-wide context
+- [x] `compareDocuments()` document diff engine (Phase 5)
+- [ ] `findConflicts()` server utilities
+- [ ] Workspace-level intelligence rollup in UI
+- [ ] Inject DII into standard (non-project-wide) retrieval headers
 
-### 15.4 Phase 4 — Domain agents
+### 12.4 Phase 5 — Document diff & change analysis
+
+- [x] `server/utils/documentDiff/` — section matching, semantic diff, LLM report
+- [x] `document_comparisons` table + REST API
+- [x] Chat intent detection for pairwise compare queries
+- [x] Comparison Report UI in workspace chat
+- [x] **5.1** Semantic clause diff — concept matching, severity, noise filtering, raw diff toggle
+- [x] **5.2** Diff quality — clause naming, deduplication, modification detection, confidence + risk score
+- [x] **5.3** Edit & re-run user questions — prompt edit UI, audit history, in-place re-run
+- [x] **6.0** Reports, history & sharing — review history, export PDF/DOCX/MD, share links, dashboard, search
+- [ ] Side-by-side document viewer
+- [ ] Version history / auto-compare on re-upload
+
+### 12.5 Phase 6 — Reports, history & sharing
+
+- [x] Extended `document_comparisons` with review metadata + share tokens
+- [x] Reviews API (list, get, dashboard, search, export, share)
+- [x] Public share route `/review/:shareToken`
+- [x] Auto-save from chat comparisons
+- [x] Export PDF / DOCX / Markdown + report templates
+
+### 12.6 Phase 7 — Domain agents
 
 - [ ] Shared `doc-intelligence` agent tools plugin
 - [ ] Contract, Due Diligence, Compliance, Audit, Executive Summary agents
-- [ ] Agent picker per workspace
 
-### 15.5 Phase 5 — Report generation
+### 12.7 Phase 8 — Report generation
 
 - [ ] Report templates (DD memo, contract matrix)
 - [ ] `generated_reports` table
-- [ ] PDF/DOCX export via create-files agent
-- [ ] Scheduled report jobs
+- [ ] PDF/DOCX export · scheduled report jobs
 
-### 15.6 Product / platform
+### 12.8 Platform
 
-- [ ] Organization multi-tenancy model
-- [ ] PostgreSQL migration path for 10k+ docs
+- [ ] Organization multi-tenancy
+- [ ] PostgreSQL migration for 10k+ docs
 - [ ] EML/MSG/ZIP ingestion
 - [ ] Document preview panel
-- [ ] Translate `projects` / `chats` / `recent_files` to all locales
 - [ ] `filesCache` invalidation after upload
-- [ ] Hybrid keyword retrieval for `$` / dates (complements vector search)
-- [ ] Re-enrich HTTP API (admin)
-
-### 15.7 Known issues / ops notes
-
-| Issue | Mitigation |
-|-------|------------|
-| Rows stuck in `processing` | `recoverStaleProcessing()` after 10 min |
-| Failed rows (`No OpenAI API key`) | Set `OPEN_AI_KEY`; `--retry-failed` |
-| Manual job run needs env | `bootstrapServerEnv()` in job + scripts |
-| Intelligence not in chat answers yet | Phase 3 wiring required |
-| Citations ≠ answer coverage | Coverage checklist helps; DII summaries will help further |
 
 ---
 
-## 16. Development commands
+## 13. Development & operations
+
+### 13.1 Commands
 
 ```bash
-# Full dev stack
-yarn dev                    # or separate: dev:server, dev:collector, dev:frontend
+# Full stack
+yarn dev
 
-# Server only
-yarn dev:server             # http://localhost:3001
+# Individual services
+yarn dev:server      # http://localhost:3001
+yarn dev:collector   # http://localhost:8888
+yarn dev:frontend    # http://localhost:3000
 
-# Prisma
+# Database
+cd server && npx prisma migrate deploy
 yarn prisma:generate
-cd server && npx prisma migrate dev
+
+# Intelligence
+node server/scripts/backfill-intelligence.js --workspace=santosh --retry-failed
+node server/jobs/enrich-document-intelligence.js
 
 # Tests
-yarn test
-npx jest server/__tests__/utils/intelligence/
-npx jest server/__tests__/utils/chats/projectWideRetrieval.test.js
+npx jest collector/__tests__/documentProcessor/
+npx jest server/__tests__/utils/intelligence/enrichDocument.test.js
+npx jest server/__tests__/models/documentIntelligence.test.js
+npx jest server/__tests__/utils/documentDiff/
+npx jest server/__tests__/utils/chats/editMessage.test.js
 ```
+
+### 13.2 Verification
+
+```bash
+# Intelligence rows
+sqlite3 server/storage/anythingllm.db \
+  "SELECT filename, fileType, category, documentType, status FROM document_intelligence;"
+
+# Workspace overview (with auth token)
+curl http://localhost:3001/api/workspace/santosh/intelligence/overview \
+  -H "Authorization: Bearer <token>"
+```
+
+### 13.3 Background workers
+
+| Job | Interval |
+|-----|----------|
+| `enrich-document-intelligence` | 30s |
+| `cleanup-orphan-documents` | 12h |
+| `cleanup-generated-files` | 8h |
+| `embedding-worker` | On-demand |
+
+### 13.4 Key custom file index
+
+| Area | Path |
+|------|------|
+| DocumentProcessor | `collector/utils/documentProcessor/` |
+| Project-wide retrieval | `server/utils/chats/projectWideRetrieval.js` |
+| Intelligence enrichment | `server/utils/intelligence/enrichDocument.js`, `resolveIntelligenceLLM.js` |
+| Intelligence model/API | `server/models/documentIntelligence.js`, `server/endpoints/intelligence.js` |
+| OpenAI provider | `server/utils/AiProviders/openAi/index.js` |
+| Phase 4 docs | `docs/PHASE4_INGESTION.md` |
 
 ---
 
-## 17. Version & lineage
+## 14. Version & lineage
 
 | Item | Value |
 |------|-------|
 | **Package** | `anything-llm@1.14.1` |
 | **Upstream** | [Mintplex-Labs/AnythingLLM](https://github.com/Mintplex-Labs/AnythingLLM) |
 | **Product name** | DocCursor |
-| **DB file** | `anythingllm.db` (intentionally unchanged) |
+| **DB file** | `anythingllm.db` |
 | **Lance path** | `server/storage/lancedb/{workspace-slug}.lance` |
 
 ---
 
-*This document is the canonical context for DocCursor architecture and implementation state. Update it when schema, retrieval, or phase boundaries change.*
+*Canonical context for DocCursor architecture and implementation. Update when schema, retrieval, ingestion, or phase boundaries change.*

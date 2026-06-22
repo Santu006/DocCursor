@@ -55,6 +55,33 @@ const router = createBrowserRouter([
         children: [{ path: "t/:threadSlug" }],
       },
       {
+        path: "/workspace/:slug/reviews",
+        lazy: async () => {
+          const { default: ReviewsDashboard } = await import(
+            "@/pages/ReviewsDashboard"
+          );
+          return { element: <PrivateRoute Component={ReviewsDashboard} /> };
+        },
+      },
+      {
+        path: "/workspace/:slug/reviews/:reviewId",
+        lazy: async () => {
+          const { default: ReviewDetail } = await import(
+            "@/pages/ReviewDetail"
+          );
+          return { element: <PrivateRoute Component={ReviewDetail} /> };
+        },
+      },
+      {
+        path: "/review/:shareToken",
+        lazy: async () => {
+          const { default: SharedReview } = await import(
+            "@/pages/SharedReview"
+          );
+          return { element: <SharedReview /> };
+        },
+      },
+      {
         path: "/accept-invite/:code",
         lazy: async () => {
           const { default: InvitePage } = await import("@/pages/Invite");

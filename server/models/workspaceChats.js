@@ -1,5 +1,8 @@
 const prisma = require("../utils/prisma");
 const { safeJSONStringify } = require("../utils/helpers/chat/responses");
+const {
+  WorkspaceChatPromptHistory,
+} = require("./workspaceChatPromptHistory");
 
 const WorkspaceChats = {
   new: async function ({
@@ -290,13 +293,124 @@ const WorkspaceChats = {
     try {
       await prisma.workspace_chats.update({
         where: { id },
-        data,
+        data: {
+          ...data,
+          lastUpdatedAt: new Date(),
+        },
       });
       return true;
     } catch (error) {
       console.error(error.message);
       return false;
     }
+  },
+
+  /**
+   * Persist a user prompt edit with audit history.
+   *
+   * @param {object} params
+   * @param {object} params.existingChat
+   * @param {string} params.newPrompt
+   * @param {number|null} [params.userId]
+   * @returns {Promise<boolean>}
+   */
+  editUserPrompt: async function ({ existingChat, newPrompt, userId = null }) {
+    if (!existingChat?.id || !newPrompt?.trim()) return false;
+
+    const nextPrompt = String(newPrompt).trim();
+    if (existingChat.prompt === nextPrompt) return true;
+
+    await WorkspaceChatPromptHistory.create({
+      chatId: existingChat.id,
+      prompt: existingChat.prompt,
+      editedBy: userId,
+    });
+
+    return this._update(existingChat.id, {
+      prompt: nextPrompt,
+      isEdited: true,
+      editedAt: new Date(),
+    });
+  },
+
+  /**
+   * Archive the current prompt and delete this chat turn + subsequent turns for re-run.
+   *
+   * @param {object} params
+   * @param {object} params.existingChat
+   * @param {string} [params.newPrompt]
+   * @param {number|null} [params.userId]
+   * @param {object} params.deleteClause - Prisma deleteMany where clause (without id gte)
+   * @returns {Promise<boolean>}
+   */
+  prepareChatRerun: async function ({
+    existingChat,
+    newPrompt = null,
+    userId = null,
+    deleteClause = {},
+  }) {
+    if (!existingChat?.id) return false;
+
+    const nextPrompt =
+      typeof newPrompt === "string" ? newPrompt.trim() : existingChat.prompt;
+    const promptChanged = existingChat.prompt !== nextPrompt;
+
+    if (promptChanged) {
+      await WorkspaceChatPromptHistory.create({
+        chatId: existingChat.id,
+        prompt: existingChat.prompt,
+        editedBy: userId,
+      });
+    }
+
+    await this.delete({
+      ...deleteClause,
+      id: { gt: Number(existingChat.id) },
+    });
+
+    return this._update(existingChat.id, {
+      prompt: nextPrompt,
+      ...(promptChanged
+        ? { isEdited: true, editedAt: new Date() }
+        : {}),
+      response: safeJSONStringify({ text: "", sources: [] }),
+    });
+  },
+
+  /**
+   * Persist an assistant response on a new or existing chat turn.
+   *
+   * @param {object} params
+   * @param {number|null} [params.existingChatId] - When set, updates this row instead of creating a new one.
+   */
+  saveResponse: async function ({
+    workspaceId,
+    prompt,
+    response = {},
+    threadId = null,
+    user = null,
+    existingChatId = null,
+    include = true,
+    apiSessionId = null,
+  }) {
+    const responsePayload = safeJSONStringify(response);
+
+    if (existingChatId) {
+      await this._update(Number(existingChatId), {
+        response: responsePayload,
+      });
+      return { chat: { id: Number(existingChatId) }, message: null };
+    }
+
+    return this.new({
+      workspaceId,
+      prompt,
+      response,
+      threadId,
+      user,
+      include,
+      apiSessionId,
+    });
   },
   markMemoryProcessed: async function (ids = []) {
     if (!Array.isArray(ids) || ids.length === 0) return;

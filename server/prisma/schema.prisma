@@ -119,23 +119,48 @@ model document_vectors {
 }
 
 model document_intelligence {
-  id            Int        @id @default(autoincrement())
-  docId         String     @unique
-  workspaceId   Int
-  filename      String
-  fileType      String
-  category      String?
-  summary       String?
-  keyTopics     String?
-  status        String     @default("pending")
-  error         String?
-  enrichedAt    DateTime?
-  createdAt     DateTime   @default(now())
-  lastUpdatedAt DateTime   @default(now())
-  workspace     workspaces @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id              Int        @id @default(autoincrement())
+  docId           String     @unique
+  workspaceId     Int
+  filename        String
+  fileType        String
+  category        String?
+  documentType    String?
+  summary         String?
+  keyTopics       String?
+  keywords        String?
+  confidenceScore Float?
+  status          String     @default("pending")
+  error           String?
+  enrichedAt      DateTime?
+  createdAt       DateTime   @default(now())
+  lastUpdatedAt   DateTime   @default(now())
+  workspace       workspaces @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
   @@index([workspaceId, status])
+  @@index([workspaceId, category])
+}
+
+model document_comparisons {
+  id                Int        @id @default(autoincrement())
+  workspaceId       Int
+  documentA         String
+  documentB         String
+  comparisonSummary String?
+  riskScore         Int?
+  summary           String?
+  createdBy         Int?
+  shareToken        String?    @unique
+  template          String?    @default("legal_review")
+  riskLevel         String?
+  createdAt         DateTime   @default(now())
+  workspace         workspaces @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, riskLevel])
+  @@index([createdBy])
 }
 
 model workspaces {
@@ -170,6 +195,7 @@ model workspaces {
   workspace_parsed_files       workspace_parsed_files[]
   memories                     memories[]
   document_intelligence        document_intelligence[]
+  document_comparisons         document_comparisons[]
 }
 
 model workspace_threads {
@@ -209,11 +235,25 @@ model workspace_chats {
   user_id        Int?
   thread_id      Int? // No relation to prevent whole table migration
   api_session_id String? // String identifier for only the dev API to partition chats in any mode.
+  isEdited       Boolean  @default(false)
+  editedAt       DateTime?
   createdAt      DateTime @default(now())
   lastUpdatedAt  DateTime @default(now())
   feedbackScore   Boolean?
   memoryProcessed Boolean? @map("memory_processed")
   users           users?   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  prompt_history  workspace_chat_prompt_history[]
+}
+
+model workspace_chat_prompt_history {
+  id        Int      @id @default(autoincrement())
+  chatId    Int
+  prompt    String
+  editedBy  Int?
+  createdAt DateTime @default(now())
+  chat      workspace_chats @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
 }
 
 model workspace_agent_invocations {

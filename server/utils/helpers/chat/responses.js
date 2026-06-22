@@ -178,7 +178,7 @@ function handleDefaultStreamResponseV2(response, stream, responseProps) {
 function convertToChatHistory(history = []) {
   const formattedHistory = [];
   for (const record of history) {
-    const { prompt, response, createdAt, feedbackScore = null, id } = record;
+    const { prompt, response, createdAt, feedbackScore = null, id, isEdited = false, editedAt = null } = record;
     const data = JSON.parse(response);
 
     // In the event that a bad response was stored - we should skip its entire record
@@ -202,6 +202,8 @@ function convertToChatHistory(history = []) {
         sentAt: moment(createdAt).unix(),
         attachments: data?.attachments ?? [],
         chatId: id,
+        isEdited: Boolean(isEdited),
+        editedAt: editedAt ? moment(editedAt).unix() : null,
       },
       {
         type: data?.type || "chart",
@@ -274,7 +276,7 @@ function convertToPromptHistory(history = []) {
         `[convertToPromptHistory] ChatHistory #${record.id} prompt property is not a string - skipping record.`
       );
       continue;
-    } else if (typeof data.text !== "string") {
+    } else if (typeof data.text !== "string" || data.text.trim().length === 0) {
       console.log(
         `[convertToPromptHistory] ChatHistory #${record.id} response.text property is not a string - skipping record.`
       );

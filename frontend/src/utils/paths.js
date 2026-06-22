@@ -99,7 +99,10 @@ export default {
     thread: (wsSlug, threadSlug) => {
       return `/workspace/${wsSlug}/t/${threadSlug}`;
     },
+    reviews: (slug) => `/workspace/${slug}/reviews`,
+    review: (slug, reviewId) => `/workspace/${slug}/reviews/${reviewId}`,
   },
+  sharedReview: (shareToken) => `/review/${shareToken}`,
   apiDocs: () => {
     return `${API_BASE}/docs`;
   },

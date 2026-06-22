@@ -72,26 +72,30 @@ describe("enrichDocument utilities", () => {
   });
 
   describe("normalizeClassification", () => {
-    it("normalizes valid payload", () => {
+    it("normalizes valid payload with phase 4 fields", () => {
       const result = normalizeClassification({
         category: "agreement",
+        documentType: "retainer agreement",
         summary: "  Retainer agreement. ",
         keyTopics: ["retainer", "  fees ", 123],
+        keywords: ["billing", "trust account"],
+        confidenceScore: 1.2,
       });
-      expect(result).toEqual({
-        category: "agreement",
-        summary: "Retainer agreement.",
-        keyTopics: ["retainer", "fees"],
-      });
+      expect(result.category).toBe("agreement");
+      expect(result.documentType).toBe("retainer agreement");
+      expect(result.summary).toBe("Retainer agreement.");
+      expect(result.keyTopics).toEqual(["retainer", "fees"]);
+      expect(result.keywords).toEqual(["billing", "trust account"]);
+      expect(result.confidenceScore).toBe(1);
     });
 
-    it("falls back to other for invalid category", () => {
+    it("maps legacy categories and falls back to general", () => {
       const result = normalizeClassification({
-        category: "not-a-real-category",
+        category: "correspondence",
         summary: "Summary",
         keyTopics: [],
       });
-      expect(result.category).toBe("other");
+      expect(result.category).toBe("general");
     });
   });
 });
@@ -99,6 +103,13 @@ describe("enrichDocument utilities", () => {
 describe("enrichDocument", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.INTELLIGENCE_LLM_PROVIDER;
+    delete process.env.INTELLIGENCE_MODEL_PREF;
+  });
+
+  afterEach(() => {
+    delete process.env.INTELLIGENCE_LLM_PROVIDER;
+    delete process.env.INTELLIGENCE_MODEL_PREF;
   });
 
   it("enriches a document and stores intelligence", async () => {
@@ -119,8 +130,11 @@ describe("enrichDocument", () => {
       getChatCompletion: jest.fn().mockResolvedValue({
         textResponse: JSON.stringify({
           category: "agreement",
+          documentType: "retainer agreement",
           summary: "Legal fee and retainer agreement.",
           keyTopics: ["retainer", "legal fees"],
+          keywords: ["retainer", "fees"],
+          confidenceScore: 0.91,
         }),
       }),
     });
@@ -135,11 +149,60 @@ describe("enrichDocument", () => {
     });
 
     expect(result.success).toBe(true);
+    expect(getLLMProvider).toHaveBeenCalledWith({
+      provider: "openai",
+      model: "gpt-4o",
+    });
     expect(summarizeContent).not.toHaveBeenCalled();
     expect(DocumentIntelligence.markComplete).toHaveBeenCalledWith(1, {
       category: "agreement",
+      documentType: "retainer agreement",
       summary: "Legal fee and retainer agreement.",
       keyTopics: ["retainer", "legal fees"],
+      keywords: ["retainer", "fees"],
+      confidenceScore: 0.91,
+    });
+  });
+
+  it("uses INTELLIGENCE_MODEL_PREF instead of workspace chat model", async () => {
+    process.env.INTELLIGENCE_MODEL_PREF = "gpt-4o";
+
+    Document.get.mockResolvedValue({ docId: "doc-4" });
+    Document.content.mockResolvedValue({
+      title: "Split.pdf",
+      content: "Agreement terms and billing details.",
+    });
+    Workspace.get.mockResolvedValue({
+      id: 4,
+      chatProvider: "openai",
+      chatModel: "gpt-4o-mini",
+    });
+    getLLMProvider.mockReturnValue({
+      getChatCompletion: jest.fn().mockResolvedValue({
+        textResponse: JSON.stringify({
+          category: "agreement",
+          documentType: "service agreement",
+          summary: "Service agreement summary.",
+          keyTopics: ["billing"],
+          keywords: ["agreement"],
+          confidenceScore: 0.9,
+        }),
+      }),
+    });
+    DocumentIntelligence.markComplete.mockResolvedValue({ id: 4 });
+
+    const result = await enrichDocument({
+      id: 4,
+      docId: "doc-4",
+      workspaceId: 4,
+      filename: "Split.pdf",
+      fileType: "pdf",
+    });
+
+    expect(result.success).toBe(true);
+    expect(getLLMProvider).toHaveBeenCalledWith({
+      provider: "openai",
+      model: "gpt-4o",
     });
   });
 
@@ -150,7 +213,11 @@ describe("enrichDocument", () => {
       title: "Big.pdf",
       content: longContent,
     });
-    Workspace.get.mockResolvedValue({ id: 2, chatProvider: "openai" });
+    Workspace.get.mockResolvedValue({
+      id: 2,
+      chatProvider: "openai",
+      chatModel: "gpt-4o",
+    });
     summarizeContent.mockResolvedValue("Condensed key points");
     getLLMProvider.mockReturnValue({
       getChatCompletion: jest.fn().mockResolvedValue({

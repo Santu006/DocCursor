@@ -21,6 +21,7 @@ import { chatQueryRefusalResponse } from "@/utils/chat";
 import HistoricalOutputs from "./HistoricalOutputs";
 import HistoricalClarifyingQuestions from "./HistoricalClarifyingQuestions";
 import { openImageLightbox } from "@/components/ImageLightbox";
+import ViewPreviousVersion from "./ViewPreviousVersion";
 
 const HistoricalMessage = ({
   uuid: uuidProp,
@@ -39,6 +40,7 @@ const HistoricalMessage = ({
   metrics = {},
   outputs = [],
   clarifyingQuestions = [],
+  isEdited = false,
 }) => {
   // Freeze uuid on first render. User messages arrive without a uuid and this value
   // is used as the wrapper div's `key` — a default param fallback would regenerate
@@ -111,7 +113,17 @@ const HistoricalMessage = ({
               />
               <ChatAttachments attachments={attachments} />
             </TruncatableContent>
+            {isEdited && (
+              <span className="text-xs text-zinc-400 light:text-slate-500 mt-1 block">
+                ({t("chat_window.edited_label")})
+              </span>
+            )}
           </div>
+          <ViewPreviousVersion
+            chatId={chatId}
+            workspaceSlug={workspace?.slug}
+            isEdited={isEdited}
+          />
           <Actions
             message={message}
             feedbackScore={feedbackScore}
@@ -136,19 +148,9 @@ const HistoricalMessage = ({
       className={`${isDeleted ? "animate-remove" : ""} flex justify-start w-full group`}
     >
       <div className="py-4 px-4 md:pl-0 flex flex-col w-full">
-        {isEditing ? (
-          <EditMessageForm
-            role={role}
-            chatId={chatId}
-            message={message}
-            attachments={attachments}
-            adjustTextArea={adjustTextArea}
-            saveChanges={saveEditedMessage}
-          />
-        ) : (
-          <div className="break-words">
-            <HistoricalClarifyingQuestions surveys={clarifyingQuestions} />
-            <RenderChatContent role={role} message={message} messageId={uuid} />
+        <div className="break-words">
+          <HistoricalClarifyingQuestions surveys={clarifyingQuestions} />
+          <RenderChatContent role={role} message={message} messageId={uuid} />
             {isRefusalMessage && (
               <Link
                 data-tooltip-id="query-refusal-info"
@@ -167,8 +169,7 @@ const HistoricalMessage = ({
             )}
             <ChatAttachments attachments={attachments} />
             <HistoricalOutputs outputs={outputs} />
-          </div>
-        )}
+        </div>
         <div className="flex items-start md:items-center gap-x-1">
           <TTSMessage
             slug={workspace?.slug}
@@ -207,6 +208,7 @@ export default memo(
       prevProps.message === nextProps.message &&
       prevProps.isLastMessage === nextProps.isLastMessage &&
       prevProps.chatId === nextProps.chatId &&
+      prevProps.isEdited === nextProps.isEdited &&
       JSON.stringify(prevProps.metrics) === JSON.stringify(nextProps.metrics) &&
       JSON.stringify(prevProps.sources) === JSON.stringify(nextProps.sources) &&
       JSON.stringify(prevProps.clarifyingQuestions) ===

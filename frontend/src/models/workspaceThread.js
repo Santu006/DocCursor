@@ -91,7 +91,8 @@ const WorkspaceThread = {
     { workspaceSlug, threadSlug },
     message,
     handleChat,
-    attachments = []
+    attachments = [],
+    rerunChatId = null
   ) {
     const ctrl = new AbortController();
 
@@ -108,7 +109,7 @@ const WorkspaceThread = {
       `${API_BASE}/workspace/${workspaceSlug}/thread/${threadSlug}/stream-chat`,
       {
         method: "POST",
-        body: JSON.stringify({ message, attachments }),
+        body: JSON.stringify({ message, attachments, rerunChatId }),
         headers: baseHeaders(),
         signal: ctrl.signal,
         openWhenHidden: true,
@@ -206,6 +207,47 @@ const WorkspaceThread = {
       .catch((e) => {
         console.log(e);
         return false;
+      });
+  },
+  _prepareChatRerun: async function (
+    workspaceSlug = "",
+    threadSlug = "",
+    chatId,
+    newPrompt
+  ) {
+    return await fetch(
+      `${API_BASE}/workspace/${workspaceSlug}/thread/${threadSlug}/prepare-chat-rerun`,
+      {
+        method: "POST",
+        headers: baseHeaders(),
+        body: JSON.stringify({ chatId, newPrompt }),
+      }
+    )
+      .then((res) => {
+        if (res.ok) return true;
+        throw new Error("Failed to prepare chat re-run.");
+      })
+      .catch((e) => {
+        console.log(e);
+        return false;
+      });
+  },
+  _getPromptHistory: async function (workspaceSlug = "", threadSlug = "", chatId) {
+    return await fetch(
+      `${API_BASE}/workspace/${workspaceSlug}/thread/${threadSlug}/chat/${chatId}/prompt-history`,
+      {
+        method: "GET",
+        headers: baseHeaders(),
+      }
+    )
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch prompt history.");
+        return res.json();
+      })
+      .then((data) => data.history || [])
+      .catch((e) => {
+        console.log(e);
+        return [];
       });
   },
 };

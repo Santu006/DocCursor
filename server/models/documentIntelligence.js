@@ -23,6 +23,7 @@ function formatRecord(record) {
   return {
     ...record,
     keyTopics: safeJsonParse(record.keyTopics, []),
+    keywords: safeJsonParse(record.keywords, []),
   };
 }
 
@@ -62,8 +63,11 @@ const DocumentIntelligence = {
           status: "pending",
           error: null,
           category: null,
+          documentType: null,
           summary: null,
           keyTopics: null,
+          keywords: null,
+          confidenceScore: null,
           enrichedAt: null,
           lastUpdatedAt: new Date(),
         },
@@ -88,13 +92,14 @@ const DocumentIntelligence = {
 
   forWorkspace: async function (
     workspaceId,
-    { status = null, limit = 100, offset = 0 } = {}
+    { status = null, category = null, limit = 100, offset = 0 } = {}
   ) {
     try {
       const records = await prisma.document_intelligence.findMany({
         where: {
           workspaceId: Number(workspaceId),
           ...(status ? { status: String(status) } : {}),
+          ...(category ? { category: String(category) } : {}),
         },
         orderBy: { createdAt: "desc" },
         take: Number(limit) || 100,
@@ -193,15 +198,29 @@ const DocumentIntelligence = {
     }
   },
 
-  markComplete: async function (id, { category, summary, keyTopics }) {
+  markComplete: async function (
+    id,
+    {
+      category,
+      documentType,
+      summary,
+      keyTopics,
+      keywords,
+      confidenceScore,
+    }
+  ) {
     try {
       return await prisma.document_intelligence.update({
         where: { id: Number(id) },
         data: {
           status: "complete",
           category: category || null,
+          documentType: documentType || null,
           summary: summary || null,
           keyTopics: JSON.stringify(keyTopics || []),
+          keywords: JSON.stringify(keywords || []),
+          confidenceScore:
+            typeof confidenceScore === "number" ? confidenceScore : null,
           error: null,
           enrichedAt: new Date(),
           lastUpdatedAt: new Date(),
@@ -293,6 +312,118 @@ const DocumentIntelligence = {
     } catch (error) {
       console.error(error.message);
       return {};
+    }
+  },
+
+  /**
+   * Workspace intelligence rollup for overview dashboards.
+   * @param {number} workspaceId
+   */
+  getWorkspaceOverview: async function (workspaceId) {
+    try {
+      const records = await prisma.document_intelligence.findMany({
+        where: { workspaceId: Number(workspaceId), status: "complete" },
+        select: {
+          category: true,
+          keyTopics: true,
+          keywords: true,
+          fileType: true,
+        },
+      });
+
+      const categories = {};
+      const topicCounts = {};
+      const fileTypes = {};
+
+      for (const record of records) {
+        const category = record.category || "general";
+        categories[category] = (categories[category] || 0) + 1;
+
+        const fileType = record.fileType || "unknown";
+        fileTypes[fileType] = (fileTypes[fileType] || 0) + 1;
+
+        const topics = safeJsonParse(record.keyTopics, []);
+        for (const topic of topics) {
+          const key = String(topic).trim().toLowerCase();
+          if (!key) continue;
+          topicCounts[key] = (topicCounts[key] || 0) + 1;
+        }
+
+        const keywords = safeJsonParse(record.keywords, []);
+        for (const word of keywords) {
+          const key = String(word).trim().toLowerCase();
+          if (!key) continue;
+          topicCounts[key] = (topicCounts[key] || 0) + 1;
+        }
+      }
+
+      const topTopics = Object.entries(topicCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 12)
+        .map(([topic, count]) => ({ topic, count }));
+
+      const categoryBreakdown = Object.entries(categories)
+        .sort((a, b) => b[1] - a[1])
+        .map(([category, count]) => ({ category, count }));
+
+      return {
+        documents: records.length,
+        categories: categoryBreakdown,
+        fileTypes,
+        topTopics,
+      };
+    } catch (error) {
+      console.error(error.message);
+      return {
+        documents: 0,
+        categories: [],
+        fileTypes: {},
+        topTopics: [],
+      };
+    }
+  },
+
+  /**
+   * Simple workspace intelligence search across filename, summary, topics, keywords.
+   * @param {number} workspaceId
+   * @param {string} query
+   * @param {{ limit?: number }} [options]
+   */
+  searchWorkspace: async function (workspaceId, query = "", { limit = 50 } = {}) {
+    const q = String(query).trim().toLowerCase();
+    if (!workspaceId || !q) return [];
+
+    try {
+      const records = await prisma.document_intelligence.findMany({
+        where: { workspaceId: Number(workspaceId), status: "complete" },
+        orderBy: { enrichedAt: "desc" },
+        take: 500,
+      });
+
+      const matches = [];
+      for (const record of records) {
+        const formatted = formatRecord(record);
+        const haystack = [
+          formatted.filename,
+          formatted.summary,
+          formatted.category,
+          formatted.documentType,
+          ...(formatted.keyTopics || []),
+          ...(formatted.keywords || []),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        if (!haystack.includes(q)) continue;
+        matches.push(formatted);
+        if (matches.length >= limit) break;
+      }
+
+      return matches;
+    } catch (error) {
+      console.error(error.message);
+      return [];
     }
   },
 };

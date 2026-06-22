@@ -10,6 +10,10 @@ const {
   normalizePath,
   isWithin,
 } = require("../utils/files");
+const {
+  processWithProcessor,
+  isSupportedByProcessor,
+} = require("../utils/documentProcessor/registry");
 const RESERVED_FILES = ["__HOTDIR__.md"];
 
 /**
@@ -77,6 +81,16 @@ async function processSingleFile(targetFilename, options = {}, metadata = {}) {
         documents: [],
       };
     }
+  }
+
+  if (isSupportedByProcessor(processFileAs)) {
+    const processorResult = await processWithProcessor(processFileAs, {
+      fullFilePath,
+      filename: targetFilename,
+      options,
+      metadata,
+    });
+    if (processorResult) return processorResult;
   }
 
   const FileTypeProcessor = require(SUPPORTED_FILETYPE_CONVERTERS[

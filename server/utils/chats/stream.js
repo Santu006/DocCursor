@@ -3,7 +3,9 @@ const { DocumentManager } = require("../DocumentManager");
 const { WorkspaceChats } = require("../../models/workspaceChats");
 const { WorkspaceParsedFiles } = require("../../models/workspaceParsedFiles");
 const { getVectorDbClass, resolveProviderConnector } = require("../helpers");
-const { writeResponseChunk } = require("../helpers/chat/responses");
+const {
+  writeResponseChunk,
+} = require("../helpers/chat/responses");
 const { grepAgents } = require("./agents");
 const {
   grepCommand,
@@ -17,8 +19,32 @@ const {
   mergeRetrievalIntoContext,
   applyProjectWideSystemPrompt,
 } = require("./projectWideRetrieval");
+const {
+  performDocumentDiffAnalysis,
+  DOCUMENT_DIFF_SYSTEM_PROMPT,
+} = require("./documentDiffRetrieval");
 
 const VALID_CHAT_MODE = ["automatic", "chat", "query"];
+
+async function persistChatTurn({
+  workspace,
+  message,
+  responsePayload,
+  thread,
+  user,
+  rerunChatId = null,
+  include = true,
+}) {
+  return WorkspaceChats.saveResponse({
+    workspaceId: workspace.id,
+    prompt: message,
+    response: responsePayload,
+    threadId: thread?.id || null,
+    user,
+    existingChatId: rerunChatId,
+    include,
+  });
+}
 
 async function streamChatWithWorkspace(
   response,
@@ -27,7 +53,8 @@ async function streamChatWithWorkspace(
   chatMode = "automatic",
   user = null,
   thread = null,
-  attachments = []
+  attachments = [],
+  rerunChatId = null
 ) {
   const uuid = uuidv4();
   const updatedMessage = await grepCommand(message, user);
@@ -109,18 +136,19 @@ async function streamChatWithWorkspace(
       close: true,
       error: null,
     });
-    await WorkspaceChats.new({
-      workspaceId: workspace.id,
-      prompt: message,
-      response: {
+    await persistChatTurn({
+      workspace,
+      message,
+      responsePayload: {
         text: textResponse,
         sources: [],
         type: chatMode,
         attachments,
       },
-      threadId: thread?.id || null,
-      include: false,
+      thread,
       user,
+      rerunChatId,
+      include: false,
     });
     return;
   }
@@ -179,6 +207,36 @@ async function streamChatWithWorkspace(
     });
   });
 
+  const documentDiffResult = await performDocumentDiffAnalysis({
+    message: updatedMessage,
+    workspace,
+    user,
+  });
+
+  if (documentDiffResult.handled && documentDiffResult.error) {
+    writeResponseChunk(response, {
+      id: uuid,
+      type: "abort",
+      textResponse: null,
+      sources: [],
+      close: true,
+      error: documentDiffResult.error,
+    });
+    return;
+  }
+
+  if (documentDiffResult.handled && documentDiffResult.context) {
+    contextTexts.unshift(documentDiffResult.context);
+    if (documentDiffResult.report) {
+      writeResponseChunk(response, {
+        uuid: `${uuid}:diff`,
+        type: "documentDiffReport",
+        report: documentDiffResult.report,
+        reviewId: documentDiffResult.reviewId || null,
+      });
+    }
+  }
+
   const vectorSearchResults =
     embeddingsCount !== 0
       ? await performWorkspaceSimilaritySearch({
@@ -232,18 +290,19 @@ async function streamChatWithWorkspace(
       error: null,
     });
 
-    await WorkspaceChats.new({
-      workspaceId: workspace.id,
-      prompt: message,
-      response: {
+    await persistChatTurn({
+      workspace,
+      message,
+      responsePayload: {
         text: textResponse,
         sources: [],
         type: chatMode,
         attachments,
       },
-      threadId: thread?.id || null,
-      include: false,
+      thread,
       user,
+      rerunChatId,
+      include: false,
     });
     return;
   }
@@ -259,9 +318,12 @@ async function streamChatWithWorkspace(
       })),
     vectorSearchResults
   );
+  const diffAwareSystemPrompt = documentDiffResult.handled
+    ? `${systemPrompt}\n\n${DOCUMENT_DIFF_SYSTEM_PROMPT}`
+    : systemPrompt;
   const messages = await LLMConnector.compressMessages(
     {
-      systemPrompt,
+      systemPrompt: diffAwareSystemPrompt,
       userPrompt: updatedMessage,
       contextTexts,
       chatHistory,
@@ -306,18 +368,19 @@ async function streamChatWithWorkspace(
   }
 
   if (completeText?.length > 0) {
-    const { chat } = await WorkspaceChats.new({
-      workspaceId: workspace.id,
-      prompt: message,
-      response: {
+    const { chat } = await persistChatTurn({
+      workspace,
+      message,
+      responsePayload: {
         text: completeText,
         sources,
         type: chatMode,
         attachments,
         metrics,
       },
-      threadId: thread?.id || null,
+      thread,
       user,
+      rerunChatId,
     });
 
     writeResponseChunk(response, {
