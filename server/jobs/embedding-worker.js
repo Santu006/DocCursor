@@ -124,6 +124,15 @@ async function processQueue() {
 
     try {
       await prisma.workspace_documents.create({ data: newDoc });
+      const { DocumentIntelligence } = require("../models/documentIntelligence");
+      await DocumentIntelligence.createPending({
+        docId,
+        workspaceId,
+        filename: metadata?.title || newDoc.filename,
+        fileType: DocumentIntelligence.detectFileType(
+          metadata?.title || newDoc.filename
+        ),
+      });
       embedded.push(filePath);
       emit({
         type: "doc_complete",

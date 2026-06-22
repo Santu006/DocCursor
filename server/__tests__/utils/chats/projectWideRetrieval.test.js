@@ -1,4 +1,12 @@
 /* eslint-env jest, node */
+
+jest.mock("../../../models/documentIntelligence", () => ({
+  DocumentIntelligence: {
+    getCompleteByFilenames: jest.fn().mockResolvedValue({}),
+  },
+}));
+
+const { DocumentIntelligence } = require("../../../models/documentIntelligence");
 const {
   isProjectWideQuery,
   isFactualExtractionQuery,
@@ -8,6 +16,8 @@ const {
   performWorkspaceSimilaritySearch,
   groupChunksByDocument,
   buildStructuredDocumentContext,
+  formatIntelligenceHeader,
+  lookupIntelligenceForTitle,
   buildDocumentCoverageChecklist,
   getProjectWideSystemInstructions,
   applyProjectWideSystemPrompt,
@@ -20,6 +30,7 @@ describe("projectWideRetrieval", () => {
   describe("isProjectWideQuery", () => {
     const positives = [
       "summarize all agreements",
+      "summarise all files",
       "Summarize all documents in this workspace",
       "compare agreements",
       "compare all contracts",
@@ -225,11 +236,71 @@ describe("projectWideRetrieval", () => {
       expect(text).not.toContain("[CONTEXT 0]");
     });
 
+    it("prepends document intelligence summary headers when provided", () => {
+      const sources = [
+        makeSource("TMC0058.pdf", 0.9, "t1", "Fee schedule $550"),
+        makeSource("RETAINER AGREEMENT-2.pdf", 0.8, "r1", "Retainer terms"),
+      ];
+      const intelligenceByTitle = {
+        "TMC0058.pdf": {
+          category: "agreement",
+          summary: "Willick Law Group retainer and billing agreement.",
+          keyTopics: ["retainer", "billing"],
+        },
+        "RETAINER AGREEMENT-2.pdf": {
+          category: "agreement",
+          summary: "Oregon sample retainer agreement template.",
+          keyTopics: ["trust account"],
+        },
+      };
+
+      const { text, intelligenceInjected } = buildStructuredDocumentContext(
+        sources,
+        intelligenceByTitle
+      );
+
+      expect(intelligenceInjected).toEqual([
+        "TMC0058.pdf",
+        "RETAINER AGREEMENT-2.pdf",
+      ]);
+      expect(text).toContain("**Document summary:** Willick Law Group retainer");
+      expect(text).toContain("**Category:** agreement");
+      expect(text).toContain("**Key topics:** retainer, billing");
+      expect(text).toContain("Fee schedule $550");
+      expect(text).toContain("Retainer terms");
+    });
+
     it("returns empty output for no sources", () => {
       const result = buildStructuredDocumentContext([]);
       expect(result.text).toBe("");
       expect(result.documentsInContext).toEqual([]);
       expect(result.chunksPerDocument).toEqual({});
+    });
+  });
+
+  describe("formatIntelligenceHeader", () => {
+    it("formats summary, category, and topics", () => {
+      const header = formatIntelligenceHeader({
+        category: "contract",
+        summary: "A fee agreement.",
+        keyTopics: ["fees", "scope"],
+      });
+      expect(header).toContain("**Document summary:** A fee agreement.");
+      expect(header).toContain("**Category:** contract");
+      expect(header).toContain("**Key topics:** fees, scope");
+    });
+
+    it("returns empty string when summary is missing", () => {
+      expect(formatIntelligenceHeader({ category: "other" })).toBe("");
+    });
+  });
+
+  describe("lookupIntelligenceForTitle", () => {
+    it("matches titles case-insensitively", () => {
+      const index = { "TMC0058.pdf": { summary: "Found" } };
+      expect(lookupIntelligenceForTitle(index, "tmc0058.pdf")?.summary).toBe(
+        "Found"
+      );
     });
   });
 
@@ -326,6 +397,7 @@ describe("projectWideRetrieval", () => {
 
   describe("performWorkspaceSimilaritySearch", () => {
     const workspace = {
+      id: 1,
       slug: "santosh",
       topN: 4,
       similarityThreshold: 0.25,
@@ -336,6 +408,7 @@ describe("projectWideRetrieval", () => {
 
     beforeEach(() => {
       jest.clearAllMocks();
+      DocumentIntelligence.getCompleteByFilenames.mockResolvedValue({});
     });
 
     it("uses workspace topN for standard queries", async () => {
@@ -365,14 +438,14 @@ describe("projectWideRetrieval", () => {
       expect(result.sources).toHaveLength(1);
     });
 
-    it("fetches 40 raw chunks and applies workspace threshold for thematic project-wide queries", async () => {
+    it("fetches 40 raw chunks and applies project-wide threshold for thematic queries", async () => {
       const rawSources = [
         { id: "1", title: "Doc A", text: "a1", score: 0.9 },
         { id: "2", title: "Doc A", text: "a2", score: 0.8 },
         { id: "3", title: "Doc A", text: "a3", score: 0.7 },
         { id: "4", title: "Doc B", text: "b1", score: 0.85 },
         { id: "5", title: "Doc C", text: "c1", score: 0.6 },
-        { id: "6", title: "Doc C", text: "c2", score: 0.2 },
+        { id: "6", title: "Doc C", text: "c2", score: 0.14 },
       ];
 
       const performSimilaritySearch = jest.fn().mockResolvedValue({
@@ -414,6 +487,88 @@ describe("projectWideRetrieval", () => {
       expect(result.coverageChecklist).toContain("* Doc A");
       expect(result.coverageChecklist).toContain("* Doc B");
       expect(result.coverageChecklist).toContain("* Doc C");
+    });
+
+    it("includes chunks for summarise-all-files style queries with weak embedding scores", async () => {
+      const rawSources = [
+        {
+          id: "1",
+          title: "Basic-Fee-Agreement.pdf",
+          text: "fee agreement",
+          score: 0.249,
+        },
+        {
+          id: "2",
+          title: "Basic-Fee-Agreement.pdf",
+          text: "hourly rate",
+          score: 0.185,
+        },
+        { id: "3", title: "TMC0058.pdf", text: "retainer", score: 0.174 },
+        { id: "4", title: "RETAINER AGREEMENT-2.pdf", text: "client", score: 0.12 },
+      ];
+
+      const performSimilaritySearch = jest.fn().mockResolvedValue({
+        contextTexts: rawSources.map((s) => s.text),
+        sources: rawSources,
+        message: false,
+      });
+
+      const getDocumentChunkCounts = jest.fn().mockResolvedValue({
+        "Basic-Fee-Agreement.pdf": 5,
+        "TMC0058.pdf": 20,
+        "RETAINER AGREEMENT-2.pdf": 5,
+      });
+
+      const result = await performWorkspaceSimilaritySearch({
+        VectorDb: { performSimilaritySearch, getDocumentChunkCounts },
+        workspace,
+        input: "summarise all files",
+        LLMConnector,
+        filterIdentifiers: [],
+      });
+
+      expect(result.projectWide).toBe(true);
+      expect(result.sources.length).toBeGreaterThanOrEqual(3);
+      expect(result.documentsInContext.length).toBe(3);
+      expect(result.contextTexts[0]).toContain("## Document:");
+    });
+
+    it("injects document intelligence summaries into project-wide context", async () => {
+      const rawSources = [
+        { id: "1", title: "TMC0058.pdf", text: "chunk one", score: 0.9 },
+        { id: "2", title: "RETAINER AGREEMENT-2.pdf", text: "chunk two", score: 0.8 },
+      ];
+
+      DocumentIntelligence.getCompleteByFilenames.mockResolvedValue({
+        "TMC0058.pdf": {
+          category: "agreement",
+          summary: "Willick Law Group services agreement.",
+          keyTopics: ["retainer"],
+        },
+      });
+
+      const performSimilaritySearch = jest.fn().mockResolvedValue({
+        contextTexts: rawSources.map((s) => s.text),
+        sources: rawSources,
+        message: false,
+      });
+
+      const result = await performWorkspaceSimilaritySearch({
+        VectorDb: { performSimilaritySearch, getDocumentChunkCounts: jest.fn().mockResolvedValue({}) },
+        workspace,
+        input: "summarize all agreements",
+        LLMConnector,
+        filterIdentifiers: [],
+      });
+
+      expect(DocumentIntelligence.getCompleteByFilenames).toHaveBeenCalledWith(
+        1,
+        expect.arrayContaining(["TMC0058.pdf", "RETAINER AGREEMENT-2.pdf"])
+      );
+      expect(result.contextTexts[0]).toContain(
+        "**Document summary:** Willick Law Group services agreement."
+      );
+      expect(result.contextTexts[0]).toContain("chunk two");
     });
 
     it("uses factual threshold override for factual project-wide queries", async () => {

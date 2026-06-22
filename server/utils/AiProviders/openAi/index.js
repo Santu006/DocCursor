@@ -18,6 +18,8 @@ class OpenAiLLM {
 
     this.openai = new OpenAIApi({
       apiKey: process.env.OPEN_AI_KEY,
+      // Node 22 + openai@4.95: SDK default fetch wrapper can ERR_STREAM_PREMATURE_CLOSE
+      fetch: globalThis.fetch,
     });
     this.model = modelPreference || process.env.OPEN_MODEL_PREF || "gpt-4o";
     this.limits = {
@@ -143,18 +145,12 @@ class OpenAiLLM {
     return temperature;
   }
 
-  async getChatCompletion(messages = null, { temperature = 0.7 }) {
-    if (!(await this.isValidChatCompletionModel(this.model)))
-      throw new Error(
-        `OpenAI chat: ${this.model} is not valid for chat completion!`
-      );
-
+  async #getChatCompletionsResult(messages, temperature) {
     const result = await LLMPerformanceMonitor.measureAsyncFunction(
-      this.openai.responses
+      this.openai.chat.completions
         .create({
           model: this.model,
-          input: messages,
-          store: false,
+          messages,
           temperature: this.#temperature(this.model, temperature),
         })
         .catch((e) => {
@@ -162,17 +158,21 @@ class OpenAiLLM {
         })
     );
 
-    if (!result.output.hasOwnProperty("output_text")) return null;
+    if (
+      !result.output.hasOwnProperty("choices") ||
+      result.output.choices.length === 0
+    )
+      return null;
 
     const usage = result.output.usage || {};
     return {
-      textResponse: result.output.output_text,
+      textResponse: result.output.choices[0].message.content,
       metrics: {
-        prompt_tokens: usage.input_tokens || 0,
-        completion_tokens: usage.output_tokens || 0,
+        prompt_tokens: usage.prompt_tokens || 0,
+        completion_tokens: usage.completion_tokens || 0,
         total_tokens: usage.total_tokens || 0,
-        outputTps: usage.output_tokens
-          ? usage.output_tokens / result.duration
+        outputTps: usage.completion_tokens
+          ? usage.completion_tokens / result.duration
           : 0,
         duration: result.duration,
         model: this.model,
@@ -180,6 +180,52 @@ class OpenAiLLM {
         timestamp: new Date(),
       },
     };
+  }
+
+  async getChatCompletion(messages = null, { temperature = 0.7 }) {
+    if (!(await this.isValidChatCompletionModel(this.model)))
+      throw new Error(
+        `OpenAI chat: ${this.model} is not valid for chat completion!`
+      );
+
+    try {
+      const result = await LLMPerformanceMonitor.measureAsyncFunction(
+        this.openai.responses
+          .create({
+            model: this.model,
+            input: messages,
+            store: false,
+            temperature: this.#temperature(this.model, temperature),
+          })
+          .catch((e) => {
+            throw new Error(e.message);
+          })
+      );
+
+      if (!result.output.hasOwnProperty("output_text")) return null;
+
+      const usage = result.output.usage || {};
+      return {
+        textResponse: result.output.output_text,
+        metrics: {
+          prompt_tokens: usage.input_tokens || 0,
+          completion_tokens: usage.output_tokens || 0,
+          total_tokens: usage.total_tokens || 0,
+          outputTps: usage.output_tokens
+            ? usage.output_tokens / result.duration
+            : 0,
+          duration: result.duration,
+          model: this.model,
+          provider: this.className,
+          timestamp: new Date(),
+        },
+      };
+    } catch (error) {
+      this.log(
+        `Responses API failed (${error.message}); falling back to chat.completions`
+      );
+      return this.#getChatCompletionsResult(messages, temperature);
+    }
   }
 
   async streamGetChatCompletion(messages = null, { temperature = 0.7 }) {

@@ -118,6 +118,26 @@ model document_vectors {
   lastUpdatedAt DateTime @default(now())
 }
 
+model document_intelligence {
+  id            Int        @id @default(autoincrement())
+  docId         String     @unique
+  workspaceId   Int
+  filename      String
+  fileType      String
+  category      String?
+  summary       String?
+  keyTopics     String?
+  status        String     @default("pending")
+  error         String?
+  enrichedAt    DateTime?
+  createdAt     DateTime   @default(now())
+  lastUpdatedAt DateTime   @default(now())
+  workspace     workspaces @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+}
+
 model workspaces {
   id                           Int                            @id @default(autoincrement())
   name                         String
@@ -149,6 +169,7 @@ model workspaces {
   prompt_history               prompt_history[]
   workspace_parsed_files       workspace_parsed_files[]
   memories                     memories[]
+  document_intelligence        document_intelligence[]
 }
 
 model workspace_threads {

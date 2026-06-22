@@ -157,6 +157,15 @@ const Document = {
 
       try {
         await prisma.workspace_documents.create({ data: newDoc });
+        const { DocumentIntelligence } = require("./documentIntelligence");
+        await DocumentIntelligence.createPending({
+          docId,
+          workspaceId: workspace.id,
+          filename: metadata?.title || newDoc.filename,
+          fileType: DocumentIntelligence.detectFileType(
+            metadata?.title || newDoc.filename
+          ),
+        });
         embedded.push(path);
         emitProgress(workspace.slug, {
           type: "doc_complete",
@@ -217,6 +226,8 @@ const Document = {
       );
 
       try {
+        const { DocumentIntelligence } = require("./documentIntelligence");
+        await DocumentIntelligence.deleteByDocId(document.docId);
         await prisma.workspace_documents.delete({
           where: { id: document.id, workspaceId: workspace.id },
         });

@@ -1,12 +1,18 @@
 const PROJECT_WIDE_CANDIDATE_LIMIT = 40;
 const FACTUAL_EXTRACTION_THRESHOLD = 0.15;
+/** Thematic project-wide queries (e.g. "summarise all files") embed poorly vs legal text. */
+const PROJECT_WIDE_SIMILARITY_THRESHOLD = FACTUAL_EXTRACTION_THRESHOLD;
+
+const {
+  DocumentIntelligence,
+} = require("../../models/documentIntelligence");
 
 /**
  * Regex patterns that indicate the user wants coverage across the whole project,
  * not a single highest-scoring document.
  */
 const PROJECT_WIDE_PATTERNS = [
-  /\bsummarize\s+all\b/i,
+  /\bsummari[sz]e\s+all\b/i,
   /\ball\s+(documents?|agreements?|contracts?|pdfs?|files?|uploads?)\b/i,
   /\bevery\s+(document|agreement|contract|pdf|file)s?\b/i,
   /\bcompare\s+(all\s+)?(documents?|agreements?|contracts?)\b/i,
@@ -148,14 +154,58 @@ function groupChunksByDocument(sources = []) {
 }
 
 /**
+ * @param {Record<string, object>} intelligenceByTitle
+ * @param {string} title
+ * @returns {object|null}
+ */
+function lookupIntelligenceForTitle(intelligenceByTitle = {}, title = "") {
+  if (!title || !intelligenceByTitle) return null;
+  if (intelligenceByTitle[title]) return intelligenceByTitle[title];
+
+  const normalized = String(title).toLowerCase();
+  for (const [key, value] of Object.entries(intelligenceByTitle)) {
+    if (String(key).toLowerCase() === normalized) return value;
+  }
+  return null;
+}
+
+/**
+ * @param {object|null} intelligence
+ * @returns {string}
+ */
+function formatIntelligenceHeader(intelligence) {
+  if (!intelligence?.summary) return "";
+
+  const lines = [`**Document summary:** ${String(intelligence.summary).trim()}`];
+  if (intelligence.category) {
+    lines.push(`**Category:** ${intelligence.category}`);
+  }
+
+  const topics = Array.isArray(intelligence.keyTopics)
+    ? intelligence.keyTopics.filter(Boolean)
+    : [];
+  if (topics.length) {
+    lines.push(`**Key topics:** ${topics.join(", ")}`);
+  }
+
+  return `${lines.join("\n")}\n\n`;
+}
+
+/**
  * Build document-grouped context for project-wide queries.
  *
  * @param {object[]} sources
- * @returns {{ text: string, documentsInContext: string[], chunksPerDocument: Record<string, number> }}
+ * @param {Record<string, object>} [intelligenceByTitle]
+ * @returns {{ text: string, documentsInContext: string[], chunksPerDocument: Record<string, number>, intelligenceInjected: string[] }}
  */
-function buildStructuredDocumentContext(sources = []) {
+function buildStructuredDocumentContext(sources = [], intelligenceByTitle = {}) {
   if (!sources?.length) {
-    return { text: "", documentsInContext: [], chunksPerDocument: {} };
+    return {
+      text: "",
+      documentsInContext: [],
+      chunksPerDocument: {},
+      intelligenceInjected: [],
+    };
   }
 
   const grouped = groupChunksByDocument(sources);
@@ -167,6 +217,7 @@ function buildStructuredDocumentContext(sources = []) {
 
   const documentsInContext = [];
   const chunksPerDocument = {};
+  const intelligenceInjected = [];
   const sections = [];
 
   for (const [title, chunks] of docOrder) {
@@ -178,13 +229,20 @@ function buildStructuredDocumentContext(sources = []) {
       .filter(Boolean)
       .join("\n\n");
 
-    sections.push(`## Document: ${title}\n\n${chunkBodies}`);
+    const intelligence = lookupIntelligenceForTitle(intelligenceByTitle, title);
+    const intelligenceHeader = formatIntelligenceHeader(intelligence);
+    if (intelligenceHeader) intelligenceInjected.push(title);
+
+    sections.push(
+      `## Document: ${title}\n\n${intelligenceHeader}${chunkBodies}`
+    );
   }
 
   return {
     text: sections.join("\n\n"),
     documentsInContext,
     chunksPerDocument,
+    intelligenceInjected,
   };
 }
 
@@ -217,6 +275,50 @@ function getSourceScore(score) {
  */
 function filterSourcesByThreshold(sources = [], threshold = 0.25) {
   return sources.filter((source) => getSourceScore(source.score) >= threshold);
+}
+
+/**
+ * When threshold filtering removes everything, keep the best-scoring chunk per document.
+ *
+ * @param {object[]} sources
+ * @returns {object[]}
+ */
+function pickTopChunkPerDocument(sources = []) {
+  const best = new Map();
+
+  for (const source of sources) {
+    const key = getDocumentKey(source);
+    const score = getSourceScore(source.score);
+    const existing = best.get(key);
+    if (!existing || score > getSourceScore(existing.score)) {
+      best.set(key, source);
+    }
+  }
+
+  return [...best.values()].sort(
+    (a, b) => getSourceScore(b.score) - getSourceScore(a.score)
+  );
+}
+
+/**
+ * Guarantee every document in the raw candidate set has at least one chunk selected.
+ *
+ * @param {object[]} selected
+ * @param {object[]} rawSources
+ * @returns {object[]}
+ */
+function ensureAtLeastOneChunkPerDocument(selected = [], rawSources = []) {
+  const covered = new Set(selected.map((source) => getDocumentKey(source)));
+  const merged = [...selected];
+
+  for (const source of pickTopChunkPerDocument(rawSources)) {
+    const key = getDocumentKey(source);
+    if (covered.has(key)) continue;
+    merged.push(source);
+    covered.add(key);
+  }
+
+  return merged;
 }
 
 /**
@@ -281,6 +383,17 @@ async function resolveDocumentChunkCounts(VectorDb, namespace) {
 }
 
 /**
+ * @param {number} workspaceId
+ * @param {string[]} documentTitles
+ * @returns {Promise<Record<string, object>>}
+ */
+async function resolveIntelligenceByTitles(workspaceId, documentTitles = []) {
+  const titles = [...new Set(documentTitles.filter(Boolean))];
+  if (!workspaceId || titles.length === 0) return {};
+  return DocumentIntelligence.getCompleteByFilenames(workspaceId, titles);
+}
+
+/**
  * @param {object} params
  * @param {object} params.VectorDb
  * @param {object} params.workspace
@@ -304,10 +417,9 @@ async function performWorkspaceSimilaritySearch({
       ? workspace.similarityThreshold
       : 0.25;
 
-  const effectiveThreshold =
-    projectWide && factualExtraction
-      ? FACTUAL_EXTRACTION_THRESHOLD
-      : workspaceThreshold;
+  const effectiveThreshold = projectWide
+    ? PROJECT_WIDE_SIMILARITY_THRESHOLD
+    : workspaceThreshold;
 
   const vectorSearchResults = await VectorDb.performSimilaritySearch({
     namespace: workspace.slug,
@@ -324,7 +436,13 @@ async function performWorkspaceSimilaritySearch({
   }
 
   const rawSources = vectorSearchResults.sources ?? [];
-  const afterThreshold = filterSourcesByThreshold(rawSources, effectiveThreshold);
+  let afterThreshold = filterSourcesByThreshold(rawSources, effectiveThreshold);
+  if (projectWide) {
+    afterThreshold =
+      afterThreshold.length === 0
+        ? pickTopChunkPerDocument(rawSources)
+        : ensureAtLeastOneChunkPerDocument(afterThreshold, rawSources);
+  }
   const documentChunkCounts = await resolveDocumentChunkCounts(
     VectorDb,
     workspace.slug
@@ -333,7 +451,17 @@ async function performWorkspaceSimilaritySearch({
     documentChunkCounts,
   });
 
-  const structured = buildStructuredDocumentContext(balanced.sources);
+  const documentTitles = [
+    ...new Set(balanced.sources.map((source) => getDocumentKey(source))),
+  ];
+  const intelligenceByTitle = await resolveIntelligenceByTitles(
+    workspace.id,
+    documentTitles
+  );
+  const structured = buildStructuredDocumentContext(
+    balanced.sources,
+    intelligenceByTitle
+  );
   const { text: coverageChecklist } = buildDocumentCoverageChecklist(
     structured.documentsInContext
   );
@@ -348,6 +476,7 @@ async function performWorkspaceSimilaritySearch({
     uniqueDocuments: new Set(balanced.sources.map((s) => s.title)).size,
     documentsInContext: structured.documentsInContext,
     chunksPerDocument: structured.chunksPerDocument,
+    intelligenceInjected: structured.intelligenceInjected,
     coverageChecklist,
   });
 
@@ -405,6 +534,7 @@ function mergeRetrievalIntoContext({
 module.exports = {
   PROJECT_WIDE_CANDIDATE_LIMIT,
   FACTUAL_EXTRACTION_THRESHOLD,
+  PROJECT_WIDE_SIMILARITY_THRESHOLD,
   PROJECT_WIDE_SYSTEM_INSTRUCTIONS,
   PROJECT_WIDE_COVERAGE_ENFORCEMENT,
   isProjectWideQuery,
@@ -414,9 +544,14 @@ module.exports = {
   applyProjectWideSystemPrompt,
   buildDocumentCoverageChecklist,
   groupChunksByDocument,
+  lookupIntelligenceForTitle,
+  formatIntelligenceHeader,
   buildStructuredDocumentContext,
   balanceChunksByDocument,
   filterSourcesByThreshold,
+  pickTopChunkPerDocument,
+  ensureAtLeastOneChunkPerDocument,
+  resolveIntelligenceByTitles,
   performWorkspaceSimilaritySearch,
   mergeRetrievalIntoContext,
 };

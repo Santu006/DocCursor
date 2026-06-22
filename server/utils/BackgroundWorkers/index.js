@@ -14,6 +14,7 @@ class BackgroundService {
   static _instance = null;
   documentSyncEnabled = false;
   memoryExtractionEnabled = false;
+  intelligenceEnabled = false;
   #root = path.resolve(__dirname, "../../jobs");
   #scheduledJobTimers = new Map();
   #scheduledJobQueue = new PQueue({
@@ -42,6 +43,14 @@ class BackgroundService {
     {
       name: "extract-memories",
       interval: process.env.MEMORY_EXTRACTION_INTERVAL || "3hr",
+    },
+  ];
+
+  #intelligenceJobs = [
+    {
+      name: "enrich-document-intelligence",
+      interval: process.env.INTELLIGENCE_POLL_INTERVAL || "30s",
+      timeout: "10m",
     },
   ];
 
@@ -104,6 +113,8 @@ class BackgroundService {
 
     this.documentSyncEnabled = await DocumentSyncQueue.enabled();
     this.memoryExtractionEnabled = await SystemSettings.autoMemoriesEnabled();
+    this.intelligenceEnabled =
+      process.env.DOCUMENT_INTELLIGENCE_ENABLED !== "false";
 
     // Mark any orphaned scheduled job runs as failed (server crashed mid-execution)
     const orphanedCount = await ScheduledJobRun.failOrphanedRuns();
@@ -160,6 +171,7 @@ class BackgroundService {
   jobs() {
     const activeJobs = [...this.#alwaysRunJobs];
     if (this.memoryExtractionEnabled) activeJobs.push(...this.#memoryJobs);
+    if (this.intelligenceEnabled) activeJobs.push(...this.#intelligenceJobs);
     if (this.documentSyncEnabled) activeJobs.push(...this.#documentSyncJobs);
     return activeJobs;
   }
