@@ -149,6 +149,30 @@ const TRANSLATIONS = {
     title: "New Workspace",
     placeholder: "My Workspace",
   },
+  folders: {
+    title: "Folders",
+    new_project: "New Project",
+    file_count: "({{count}})",
+    empty_tree: "No documents in this project yet",
+    loading: "Loading documents…",
+    load_failed: "Could not load project documents",
+    toggle_tree: "Show or hide documents",
+  },
+  projects: {
+    title: "Projects",
+    new_project: "New Project",
+    file_count: "({{count}})",
+    empty_files: "No documents in this project yet",
+    loading: "Loading documents…",
+    load_failed: "Could not load project documents",
+    toggle_tree: "Show or hide documents",
+  },
+  chats: {
+    title: "Chats",
+  },
+  recent_files: {
+    title: "Recent Files",
+  },
   "workspaces—settings": {
     general: "General Settings",
     chat: "Chat Settings",

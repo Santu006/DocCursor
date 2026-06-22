@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { List, Plus } from "@phosphor-icons/react";
+import { List } from "@phosphor-icons/react";
 import NewWorkspaceModal, {
   useNewWorkspaceModal,
 } from "../Modals/NewWorkspace";
@@ -10,7 +10,6 @@ import Footer from "../Footer";
 import SettingsButton from "../SettingsButton";
 import { Link } from "react-router-dom";
 import paths from "@/utils/paths";
-import { useTranslation } from "react-i18next";
 import { useSidebarToggle, ToggleSidebarButton } from "./SidebarToggle";
 import SearchBox from "./SearchBox";
 import { Tooltip } from "react-tooltip";
@@ -64,7 +63,7 @@ export default function Sidebar() {
                 <div className="relative h-[calc(100%-60px)] flex flex-col w-full justify-between pt-[10px] overflow-y-scroll no-scroll">
                   <div className="flex flex-col gap-y-[14px]">
                     <SearchBox user={user} showNewWsModal={showNewWsModal} />
-                    <ActiveWorkspaces />
+                    <ActiveWorkspaces showNewWsModal={showNewWsModal} />
                   </div>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 pb-3 rounded-b-[16px] bg-theme-bg-sidebar light:bg-slate-200 bg-opacity-80 backdrop-filter backdrop-blur-md z-10">
@@ -170,11 +169,7 @@ export function SidebarMobileHeader() {
             <div className="h-full flex flex-col w-full justify-between pt-4 ">
               <div className="h-auto md:sidebar-items">
                 <div className=" flex flex-col gap-y-4 overflow-y-scroll no-scroll pb-[60px]">
-                  <NewWorkspaceButton
-                    user={user}
-                    showNewWsModal={showNewWsModal}
-                  />
-                  <ActiveWorkspaces />
+                  <ActiveWorkspaces showNewWsModal={showNewWsModal} />
                 </div>
               </div>
               <div className="z-99 absolute bottom-0 left-0 right-0 pt-2 pb-6 rounded-br-[26px] bg-theme-bg-sidebar bg-opacity-80 backdrop-filter backdrop-blur-md">
@@ -186,25 +181,6 @@ export function SidebarMobileHeader() {
         {showingNewWsModal && <NewWorkspaceModal hideModal={hideNewWsModal} />}
       </div>
     </>
-  );
-}
-
-function NewWorkspaceButton({ user, showNewWsModal }) {
-  const { t } = useTranslation();
-  if (!!user && user?.role === "default") return null;
-
-  return (
-    <div className="flex gap-x-2 items-center justify-between">
-      <button
-        onClick={showNewWsModal}
-        className="flex flex-grow w-[75%] h-[44px] gap-x-2 py-[5px] px-4 bg-white rounded-lg text-sidebar justify-center items-center hover:bg-opacity-80 transition-all duration-300"
-      >
-        <Plus className="h-5 w-5" />
-        <p className="text-sidebar text-sm font-semibold">
-          {t("new-workspace.title")}
-        </p>
-      </button>
-    </div>
   );
 }
 
