@@ -12,6 +12,11 @@ const {
   recentChatHistory,
   sourceIdentifier,
 } = require("./index");
+const {
+  performWorkspaceSimilaritySearch,
+  mergeRetrievalIntoContext,
+  applyProjectWideSystemPrompt,
+} = require("./projectWideRetrieval");
 
 const VALID_CHAT_MODE = ["automatic", "chat", "query"];
 
@@ -176,19 +181,18 @@ async function streamChatWithWorkspace(
 
   const vectorSearchResults =
     embeddingsCount !== 0
-      ? await VectorDb.performSimilaritySearch({
-          namespace: workspace.slug,
+      ? await performWorkspaceSimilaritySearch({
+          VectorDb,
+          workspace,
           input: updatedMessage,
           LLMConnector,
-          similarityThreshold: workspace?.similarityThreshold,
-          topN: workspace?.topN,
           filterIdentifiers: pinnedDocIdentifiers,
-          rerank: workspace?.vectorSearchMode === "rerank",
         })
       : {
           contextTexts: [],
           sources: [],
           message: null,
+          projectWide: false,
         };
 
   // Failed similarity search if it was run at all and failed.
@@ -204,23 +208,14 @@ async function streamChatWithWorkspace(
     return;
   }
 
-  const { fillSourceWindow } = require("../helpers/chat");
-  const filledSources = fillSourceWindow({
-    nDocs: workspace?.topN || 4,
-    searchResults: vectorSearchResults.sources,
-    history: rawHistory,
-    filterIdentifiers: pinnedDocIdentifiers,
-  });
-
-  // Why does contextTexts get all the info, but sources only get current search?
-  // This is to give the ability of the LLM to "comprehend" a contextual response without
-  // populating the Citations under a response with documents the user "thinks" are irrelevant
-  // due to how we manage backfilling of the context to keep chats with the LLM more correct in responses.
-  // If a past citation was used to answer the question - that is visible in the history so it logically makes sense
-  // and does not appear to the user that a new response used information that is otherwise irrelevant for a given prompt.
-  // TLDR; reduces GitHub issues for "LLM citing document that has no answer in it" while keep answers highly accurate.
-  contextTexts = [...contextTexts, ...filledSources.contextTexts];
-  sources = [...sources, ...vectorSearchResults.sources];
+  ({ contextTexts, sources } = mergeRetrievalIntoContext({
+    vectorSearchResults,
+    contextTexts,
+    sources,
+    rawHistory,
+    workspace,
+    pinnedDocIdentifiers,
+  }));
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not
   // let the LLM try to hallucinate a response or use general knowledge and exit early
@@ -256,12 +251,14 @@ async function streamChatWithWorkspace(
   // Compress & Assemble message to ensure prompt passes token limit with room for response
   // and build system messages based on inputs and history.
   // Reuse the system prompt from routing pre-fetch when available.
-  const systemPrompt =
+  const systemPrompt = applyProjectWideSystemPrompt(
     prefetchedContext?.systemPrompt ??
-    (await chatPrompt(workspace, user, {
-      prompt: updatedMessage,
-      rawHistory,
-    }));
+      (await chatPrompt(workspace, user, {
+        prompt: updatedMessage,
+        rawHistory,
+      })),
+    vectorSearchResults
+  );
   const messages = await LLMConnector.compressMessages(
     {
       systemPrompt,

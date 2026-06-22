@@ -7,6 +7,10 @@ const {
   chatPrompt,
 } = require("../../chats");
 const { fillSourceWindow } = require("../../helpers/chat");
+const {
+  performWorkspaceSimilaritySearch,
+  applyProjectWideSystemPrompt,
+} = require("../../chats/projectWideRetrieval");
 const { AgentHandler } = require("../../agents");
 const {
   STREAM_EDIT_INTERVAL,
@@ -116,6 +120,8 @@ async function streamResponse({
     contextTexts: searchContextTexts,
     sources: searchSources,
     error: searchError,
+    projectWide,
+    documentsInContext,
   } = await buildSearchContext({
     workspace,
     message,
@@ -135,7 +141,10 @@ async function streamResponse({
   const sources = [...pinnedSources, ...searchSources];
   const messages = await LLMConnector.compressMessages(
     {
-      systemPrompt: await chatPrompt(workspace),
+      systemPrompt: applyProjectWideSystemPrompt(
+        await chatPrompt(workspace),
+        { projectWide, documentsInContext }
+      ),
       userPrompt: message,
       contextTexts,
       chatHistory,
@@ -220,22 +229,31 @@ async function buildSearchContext({
 }) {
   const vectorSearchResults =
     embeddingsCount !== 0
-      ? await VectorDb.performSimilaritySearch({
-          namespace: workspace.slug,
+      ? await performWorkspaceSimilaritySearch({
+          VectorDb,
+          workspace,
           input: message,
           LLMConnector,
-          similarityThreshold: workspace?.similarityThreshold,
-          topN: workspace?.topN,
           filterIdentifiers: pinnedDocIdentifiers,
-          rerank: workspace?.vectorSearchMode === "rerank",
         })
-      : { contextTexts: [], sources: [], message: null };
+      : { contextTexts: [], sources: [], message: null, projectWide: false };
 
   if (vectorSearchResults.message) {
     return {
       contextTexts: [],
       sources: [],
       error: "Vector search failed. Please try again.",
+      projectWide: false,
+    };
+  }
+
+  if (vectorSearchResults.projectWide) {
+    return {
+      contextTexts: vectorSearchResults.contextTexts,
+      sources: vectorSearchResults.sources,
+      error: null,
+      projectWide: true,
+      documentsInContext: vectorSearchResults.documentsInContext ?? [],
     };
   }
 
@@ -250,6 +268,8 @@ async function buildSearchContext({
     contextTexts: filledSources.contextTexts,
     sources: vectorSearchResults.sources,
     error: null,
+    projectWide: false,
+    documentsInContext: [],
   };
 }
 

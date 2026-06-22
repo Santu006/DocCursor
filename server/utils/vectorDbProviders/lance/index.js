@@ -78,6 +78,29 @@ class LanceDb extends VectorDatabase {
   }
 
   /**
+   * Returns total embedded chunk counts grouped by document title.
+   * @param {string} namespace
+   * @returns {Promise<Record<string, number>>}
+   */
+  async getDocumentChunkCounts(namespace = null) {
+    if (!namespace) return {};
+
+    const { client } = await this.connect();
+    if (!(await this.namespaceExists(client, namespace))) return {};
+
+    const table = await client.openTable(namespace);
+    const rows = await table.query().limit(10000).toArray();
+    const counts = {};
+
+    for (const row of rows) {
+      const title = row.title || "unknown-document";
+      counts[title] = (counts[title] || 0) + 1;
+    }
+
+    return counts;
+  }
+
+  /**
    * Performs a SimilaritySearch + Reranking on a namespace.
    * @param {Object} params - The parameters for the rerankedSimilarityResponse.
    * @param {Object} params.client - The vectorDB client.

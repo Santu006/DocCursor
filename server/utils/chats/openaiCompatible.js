@@ -4,6 +4,10 @@ const { WorkspaceChats } = require("../../models/workspaceChats");
 const { getVectorDbClass, resolveProviderConnector } = require("../helpers");
 const { writeResponseChunk } = require("../helpers/chat/responses");
 const { chatPrompt, sourceIdentifier } = require("./index");
+const {
+  performWorkspaceSimilaritySearch,
+  applyProjectWideSystemPrompt,
+} = require("./projectWideRetrieval");
 
 const { PassThrough } = require("stream");
 
@@ -94,19 +98,18 @@ async function chatSync({
 
   const vectorSearchResults =
     embeddingsCount !== 0
-      ? await VectorDb.performSimilaritySearch({
-          namespace: workspace.slug,
+      ? await performWorkspaceSimilaritySearch({
+          VectorDb,
+          workspace,
           input: String(prompt),
           LLMConnector,
-          similarityThreshold: workspace?.similarityThreshold,
-          topN: workspace?.topN,
           filterIdentifiers: pinnedDocIdentifiers,
-          rerank: workspace?.vectorSearchMode === "rerank",
         })
       : {
           contextTexts: [],
           sources: [],
           message: null,
+          projectWide: false,
         };
 
   // Failed similarity search if it was run at all and failed.
@@ -163,7 +166,10 @@ async function chatSync({
   // Compress & Assemble message to ensure prompt passes token limit with room for response
   // and build system messages based on inputs and history.
   const messages = await LLMConnector.compressMessages({
-    systemPrompt: systemPrompt ?? (await chatPrompt(workspace)),
+    systemPrompt: applyProjectWideSystemPrompt(
+      systemPrompt ?? (await chatPrompt(workspace)),
+      vectorSearchResults
+    ),
     userPrompt: String(prompt),
     contextTexts,
     chatHistory: history,
@@ -330,19 +336,18 @@ async function streamChat({
 
   const vectorSearchResults =
     embeddingsCount !== 0
-      ? await VectorDb.performSimilaritySearch({
-          namespace: workspace.slug,
+      ? await performWorkspaceSimilaritySearch({
+          VectorDb,
+          workspace,
           input: String(prompt),
           LLMConnector,
-          similarityThreshold: workspace?.similarityThreshold,
-          topN: workspace?.topN,
           filterIdentifiers: pinnedDocIdentifiers,
-          rerank: workspace?.vectorSearchMode === "rerank",
         })
       : {
           contextTexts: [],
           sources: [],
           message: null,
+          projectWide: false,
         };
 
   // Failed similarity search if it was run at all and failed.
@@ -407,7 +412,10 @@ async function streamChat({
   // Compress & Assemble message to ensure prompt passes token limit with room for response
   // and build system messages based on inputs and history.
   const messages = await LLMConnector.compressMessages({
-    systemPrompt: systemPrompt ?? (await chatPrompt(workspace)),
+    systemPrompt: applyProjectWideSystemPrompt(
+      systemPrompt ?? (await chatPrompt(workspace)),
+      vectorSearchResults
+    ),
     userPrompt: String(prompt),
     contextTexts,
     chatHistory: history,

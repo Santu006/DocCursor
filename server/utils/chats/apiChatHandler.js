@@ -10,6 +10,11 @@ const {
   grepAllSlashCommands,
 } = require("./index");
 const {
+  performWorkspaceSimilaritySearch,
+  mergeRetrievalIntoContext,
+  applyProjectWideSystemPrompt,
+} = require("./projectWideRetrieval");
+const {
   EphemeralAgentHandler,
   EphemeralEventListener,
 } = require("../agents/ephemeral");
@@ -319,19 +324,18 @@ async function chatSync({
 
   const vectorSearchResults =
     embeddingsCount !== 0
-      ? await VectorDb.performSimilaritySearch({
-          namespace: workspace.slug,
+      ? await performWorkspaceSimilaritySearch({
+          VectorDb,
+          workspace,
           input: message,
           LLMConnector,
-          similarityThreshold: workspace?.similarityThreshold,
-          topN: workspace?.topN,
           filterIdentifiers: pinnedDocIdentifiers,
-          rerank: workspace?.vectorSearchMode === "rerank",
         })
       : {
           contextTexts: [],
           sources: [],
           message: null,
+          projectWide: false,
         };
 
   // Failed similarity search if it was run at all and failed.
@@ -347,23 +351,14 @@ async function chatSync({
     };
   }
 
-  const { fillSourceWindow } = require("../helpers/chat");
-  const filledSources = fillSourceWindow({
-    nDocs: workspace?.topN || 4,
-    searchResults: vectorSearchResults.sources,
-    history: rawHistory,
-    filterIdentifiers: pinnedDocIdentifiers,
-  });
-
-  // Why does contextTexts get all the info, but sources only get current search?
-  // This is to give the ability of the LLM to "comprehend" a contextual response without
-  // populating the Citations under a response with documents the user "thinks" are irrelevant
-  // due to how we manage backfilling of the context to keep chats with the LLM more correct in responses.
-  // If a past citation was used to answer the question - that is visible in the history so it logically makes sense
-  // and does not appear to the user that a new response used information that is otherwise irrelevant for a given prompt.
-  // TLDR; reduces GitHub issues for "LLM citing document that has no answer in it" while keep answers highly accurate.
-  contextTexts = [...contextTexts, ...filledSources.contextTexts];
-  sources = [...sources, ...vectorSearchResults.sources];
+  ({ contextTexts, sources } = mergeRetrievalIntoContext({
+    vectorSearchResults,
+    contextTexts,
+    sources,
+    rawHistory,
+    workspace,
+    pinnedDocIdentifiers,
+  }));
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not
   // let the LLM try to hallucinate a response or use general knowledge and exit early
@@ -401,10 +396,13 @@ async function chatSync({
 
   // Compress & Assemble message to ensure prompt passes token limit with room for response
   // and build system messages based on inputs and history.
-  const systemPrompt = await chatPrompt(workspace, user, {
-    prompt: message,
-    rawHistory,
-  });
+  const systemPrompt = applyProjectWideSystemPrompt(
+    await chatPrompt(workspace, user, {
+      prompt: message,
+      rawHistory,
+    }),
+    vectorSearchResults
+  );
   const messages = await LLMConnector.compressMessages(
     {
       systemPrompt,
@@ -695,19 +693,18 @@ async function streamChat({
 
   const vectorSearchResults =
     embeddingsCount !== 0
-      ? await VectorDb.performSimilaritySearch({
-          namespace: workspace.slug,
+      ? await performWorkspaceSimilaritySearch({
+          VectorDb,
+          workspace,
           input: message,
           LLMConnector,
-          similarityThreshold: workspace?.similarityThreshold,
-          topN: workspace?.topN,
           filterIdentifiers: pinnedDocIdentifiers,
-          rerank: workspace?.vectorSearchMode === "rerank",
         })
       : {
           contextTexts: [],
           sources: [],
           message: null,
+          projectWide: false,
         };
 
   // Failed similarity search if it was run at all and failed.
@@ -724,23 +721,14 @@ async function streamChat({
     return;
   }
 
-  const { fillSourceWindow } = require("../helpers/chat");
-  const filledSources = fillSourceWindow({
-    nDocs: workspace?.topN || 4,
-    searchResults: vectorSearchResults.sources,
-    history: rawHistory,
-    filterIdentifiers: pinnedDocIdentifiers,
-  });
-
-  // Why does contextTexts get all the info, but sources only get current search?
-  // This is to give the ability of the LLM to "comprehend" a contextual response without
-  // populating the Citations under a response with documents the user "thinks" are irrelevant
-  // due to how we manage backfilling of the context to keep chats with the LLM more correct in responses.
-  // If a past citation was used to answer the question - that is visible in the history so it logically makes sense
-  // and does not appear to the user that a new response used information that is otherwise irrelevant for a given prompt.
-  // TLDR; reduces GitHub issues for "LLM citing document that has no answer in it" while keep answers highly accurate.
-  contextTexts = [...contextTexts, ...filledSources.contextTexts];
-  sources = [...sources, ...vectorSearchResults.sources];
+  ({ contextTexts, sources } = mergeRetrievalIntoContext({
+    vectorSearchResults,
+    contextTexts,
+    sources,
+    rawHistory,
+    workspace,
+    pinnedDocIdentifiers,
+  }));
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not
   // let the LLM try to hallucinate a response or use general knowledge and exit early
@@ -778,10 +766,13 @@ async function streamChat({
 
   // Compress & Assemble message to ensure prompt passes token limit with room for response
   // and build system messages based on inputs and history.
-  const streamSystemPrompt = await chatPrompt(workspace, user, {
-    prompt: message,
-    rawHistory,
-  });
+  const streamSystemPrompt = applyProjectWideSystemPrompt(
+    await chatPrompt(workspace, user, {
+      prompt: message,
+      rawHistory,
+    }),
+    vectorSearchResults
+  );
   const messages = await LLMConnector.compressMessages(
     {
       systemPrompt: streamSystemPrompt,
