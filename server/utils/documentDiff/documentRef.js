@@ -1,5 +1,8 @@
 const { safeJsonParse } = require("../http");
 
+const FILE_EXTENSION_PATTERN =
+  /\.(json|pdf|docx?|xlsx?|csv|md|txt|pptx?|html?)$/i;
+
 /**
  * Normalize a document label for fuzzy matching (ignore spaces, hyphens, case, extensions).
  *
@@ -9,7 +12,7 @@ const { safeJsonParse } = require("../http");
 function normalizeDocLabel(value = "") {
   return String(value)
     .toLowerCase()
-    .replace(/\.json$/i, "")
+    .replace(FILE_EXTENSION_PATTERN, "")
     .replace(
       /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
       ""
@@ -48,6 +51,16 @@ function scoreDocumentMatch(needle, doc) {
     const normLabel = normalizeDocLabel(label);
     if (!normLabel) continue;
     if (normLabel === normNeedle) return 1;
+
+    // Short user references like "Basic-Fee-Agreement.pdf" against long stored titles.
+    if (
+      normNeedle.length >= 8 &&
+      normLabel.startsWith(normNeedle)
+    ) {
+      best = Math.max(best, 0.9);
+      continue;
+    }
+
     if (normLabel.includes(normNeedle) || normNeedle.includes(normLabel)) {
       best = Math.max(
         best,

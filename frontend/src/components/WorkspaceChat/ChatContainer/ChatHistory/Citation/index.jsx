@@ -194,6 +194,20 @@ export function omitChunkHeader(text) {
   return text.split("</document_metadata>")[1].trim();
 }
 
+function readChunkMetadata(text = "") {
+  if (!text.includes("<document_metadata>")) return {};
+  const block = text.split("<document_metadata>")[1]?.split("</document_metadata>")[0] || "";
+  const meta = {};
+  for (const line of block.split("\n")) {
+    const colonIndex = line.indexOf(":");
+    if (colonIndex === -1) continue;
+    const key = line.slice(0, colonIndex).trim();
+    const value = line.slice(colonIndex + 1).trim();
+    if (key && value) meta[key] = value;
+  }
+  return meta;
+}
+
 export function CitationDetailModal({ source, onClose }) {
   const { references, title, chunks } = source;
   const { isUrl, text: webpageUrl, href: linkTo } = parseChunkSource(source);
@@ -250,6 +264,16 @@ export function CitationDetailModal({ source, onClose }) {
               <Fragment key={idx}>
                 <div className="pt-6 text-white light:text-slate-900">
                   <div className="flex flex-col w-full justify-start pb-6 gap-y-1">
+                    {(() => {
+                      const meta = readChunkMetadata(text);
+                      const sectionTitle =
+                        meta.sectionTitle || meta.section || null;
+                      return sectionTitle ? (
+                        <p className="text-xs text-white/50 light:text-slate-500 mb-1">
+                          Section: {sectionTitle}
+                        </p>
+                      ) : null;
+                    })()}
                     <p className="text-white light:text-slate-900 whitespace-pre-line">
                       {HTMLDecode(omitChunkHeader(text))}
                     </p>
@@ -263,7 +287,7 @@ export function CitationDetailModal({ source, onClose }) {
                         >
                           <Info size={14} />
                           <p>
-                            {toPercentString(score)}{" "}
+                            Confidence: {toPercentString(score)}{" "}
                             {t("chat_window.similarity_match")}
                           </p>
                         </div>

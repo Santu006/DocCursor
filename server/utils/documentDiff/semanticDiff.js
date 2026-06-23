@@ -106,6 +106,7 @@ function buildClauseChangeRecord({
     label,
     title: label,
     section: sectionTitle || label,
+    sectionTitle: sectionTitle || label,
     conceptId,
     summary,
     previous: beforeText,

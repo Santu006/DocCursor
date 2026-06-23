@@ -19,7 +19,7 @@ DocCursor enables organizations (law firms, CA/audit firms, consulting, complian
 | **Document intelligence** | Per-document LLM enrichment: summary, category, topics, keywords, confidence |
 | **Project-wide chat** | “Summarise all files”, “compare all documents”, fee/retainer extraction |
 | **Intelligence-aware retrieval** | DII summaries injected into project-wide context headers (Phase 3) |
-| **Workspace intelligence APIs** | List, filter, search, and overview rollup |
+| **Workspace intelligence APIs** | List, filter, search, overview rollup, topic graph |
 
 ### Two-layer index
 
@@ -514,6 +514,7 @@ Rotate API keys if exposed in chat or logs. `server/.env.development` is gitigno
 
 - [x] Inject DII summaries into project-wide context
 - [x] `compareDocuments()` document diff engine (Phase 5)
+- [x] Workspace Topic Graph — deterministic clusters from category/topic/embedding overlap
 - [ ] `findConflicts()` server utilities
 - [ ] Workspace-level intelligence rollup in UI
 - [ ] Inject DII into standard (non-project-wide) retrieval headers
@@ -541,6 +542,7 @@ Rotate API keys if exposed in chat or logs. `server/.env.development` is gitigno
 
 ### 12.6 Phase 7 — Domain agents
 
+- [x] **7.1A** Evidence & citation layer — citation engine, diff evidence, analytical topN=20
 - [ ] Shared `doc-intelligence` agent tools plugin
 - [ ] Contract, Due Diligence, Compliance, Audit, Executive Summary agents
 
@@ -584,6 +586,8 @@ node server/jobs/enrich-document-intelligence.js
 # Tests
 npx jest collector/__tests__/documentProcessor/
 npx jest server/__tests__/utils/intelligence/enrichDocument.test.js
+npx jest server/__tests__/utils/intelligence/buildTopicGraph.test.js
+npx jest server/__tests__/utils/citations/citations.test.js
 npx jest server/__tests__/models/documentIntelligence.test.js
 npx jest server/__tests__/utils/documentDiff/
 npx jest server/__tests__/utils/chats/editMessage.test.js
@@ -618,6 +622,8 @@ curl http://localhost:3001/api/workspace/santosh/intelligence/overview \
 | Project-wide retrieval | `server/utils/chats/projectWideRetrieval.js` |
 | Intelligence enrichment | `server/utils/intelligence/enrichDocument.js`, `resolveIntelligenceLLM.js` |
 | Intelligence model/API | `server/models/documentIntelligence.js`, `server/endpoints/intelligence.js` |
+| Topic graph builder | `server/utils/intelligence/buildTopicGraph.js` |
+| Citation engine | `server/utils/citations/` |
 | OpenAI provider | `server/utils/AiProviders/openAi/index.js` |
 | Phase 4 docs | `docs/PHASE4_INGESTION.md` |
 

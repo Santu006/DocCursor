@@ -195,6 +195,12 @@ describe("diffReport", () => {
     expect(report.modified.length).toBeGreaterThan(0);
     expect(report.report).toMatch(/Executive Summary/);
     expect(report.report).toMatch(/Financial Impact/);
+    expect(report.added[0].evidence?.[0]).toEqual(
+      expect.objectContaining({
+        documentName: "Contract_v2.md",
+        similarityScore: expect.any(Number),
+      })
+    );
   });
 });
 
@@ -293,6 +299,32 @@ describe("documentDiffRetrieval", () => {
 
     const pair = extractDocumentPairFromQuery(
       "Compare Basic-Fee-Agreement-hourly-or-flat-fee-for-use-in-limited-scope-representation.pdf with RETAINER AGREEMENT-2.pdf",
+      docs
+    );
+
+    expect(pair).toEqual({ documentA: "a", documentB: "b" });
+  });
+
+  it("extracts pair when user uses shortened basic fee agreement filename", () => {
+    const docs = [
+      {
+        docId: "a",
+        filename:
+          "Basic-Fee-Agreement-hourly-or-flat-fee-for-use-in-limited-scope-representation.pdf-e585adc2.json",
+        metadata: JSON.stringify({
+          title:
+            "Basic-Fee-Agreement-hourly-or-flat-fee-for-use-in-limited-scope-representation.pdf",
+        }),
+      },
+      {
+        docId: "b",
+        filename: "RETAINER-AGREEMENT-2.pdf-9e3b68cd.json",
+        metadata: JSON.stringify({ title: "RETAINER AGREEMENT-2.pdf" }),
+      },
+    ];
+
+    const pair = extractDocumentPairFromQuery(
+      "Compare Basic-Fee-Agreement.pdf with RETAINER AGREEMENT-2.pdf",
       docs
     );
 

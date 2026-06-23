@@ -101,6 +101,8 @@ export default {
     },
     reviews: (slug) => `/workspace/${slug}/reviews`,
     review: (slug, reviewId) => `/workspace/${slug}/reviews/${reviewId}`,
+    topicGraph: (slug) => `/workspace/${slug}/topic-graph`,
+    executiveReport: (slug) => `/workspace/${slug}/executive-report`,
   },
   sharedReview: (shareToken) => `/review/${shareToken}`,
   apiDocs: () => {

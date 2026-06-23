@@ -23,6 +23,14 @@ const {
   performDocumentDiffAnalysis,
   DOCUMENT_DIFF_SYSTEM_PROMPT,
 } = require("./documentDiffRetrieval");
+const {
+  performWorkspaceGraphQuery,
+  WORKSPACE_GRAPH_SYSTEM_PROMPT,
+} = require("./workspaceGraphRetrieval");
+const {
+  performExecutiveReportQuery,
+  EXECUTIVE_REPORT_SYSTEM_PROMPT,
+} = require("./workspaceReportRetrieval");
 
 const VALID_CHAT_MODE = ["automatic", "chat", "query"];
 
@@ -237,6 +245,50 @@ async function streamChatWithWorkspace(
     }
   }
 
+  const executiveReportResult = await performExecutiveReportQuery({
+    message: updatedMessage,
+    workspace,
+  });
+
+  if (executiveReportResult.handled && executiveReportResult.error) {
+    writeResponseChunk(response, {
+      id: uuid,
+      type: "abort",
+      textResponse: null,
+      sources: [],
+      close: true,
+      error: executiveReportResult.error,
+    });
+    return;
+  }
+
+  if (executiveReportResult.handled && executiveReportResult.context) {
+    contextTexts.unshift(executiveReportResult.context);
+  }
+
+  const workspaceGraphResult = executiveReportResult.handled
+    ? { handled: false }
+    : await performWorkspaceGraphQuery({
+        message: updatedMessage,
+        workspace,
+      });
+
+  if (workspaceGraphResult.handled && workspaceGraphResult.error) {
+    writeResponseChunk(response, {
+      id: uuid,
+      type: "abort",
+      textResponse: null,
+      sources: [],
+      close: true,
+      error: workspaceGraphResult.error,
+    });
+    return;
+  }
+
+  if (workspaceGraphResult.handled && workspaceGraphResult.context) {
+    contextTexts.unshift(workspaceGraphResult.context);
+  }
+
   const vectorSearchResults =
     embeddingsCount !== 0
       ? await performWorkspaceSimilaritySearch({
@@ -320,7 +372,11 @@ async function streamChatWithWorkspace(
   );
   const diffAwareSystemPrompt = documentDiffResult.handled
     ? `${systemPrompt}\n\n${DOCUMENT_DIFF_SYSTEM_PROMPT}`
-    : systemPrompt;
+    : executiveReportResult.handled
+      ? `${systemPrompt}\n\n${EXECUTIVE_REPORT_SYSTEM_PROMPT}`
+      : workspaceGraphResult.handled
+        ? `${systemPrompt}\n\n${WORKSPACE_GRAPH_SYSTEM_PROMPT}`
+        : systemPrompt;
   const messages = await LLMConnector.compressMessages(
     {
       systemPrompt: diffAwareSystemPrompt,

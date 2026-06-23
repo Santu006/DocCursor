@@ -10,6 +10,7 @@ const { DocumentIntelligence } = require("../../../models/documentIntelligence")
 const {
   isProjectWideQuery,
   isFactualExtractionQuery,
+  isAnalyticalQuery,
   getDynamicMaxChunksPerDoc,
   balanceChunksByDocument,
   filterSourcesByThreshold,
@@ -20,9 +21,11 @@ const {
   lookupIntelligenceForTitle,
   buildDocumentCoverageChecklist,
   getProjectWideSystemInstructions,
+  getAnalyticalSystemInstructions,
   applyProjectWideSystemPrompt,
   PROJECT_WIDE_COVERAGE_ENFORCEMENT,
   PROJECT_WIDE_CANDIDATE_LIMIT,
+  ANALYTICAL_TOP_N,
   FACTUAL_EXTRACTION_THRESHOLD,
 } = require("../../../utils/chats/projectWideRetrieval");
 
@@ -84,6 +87,27 @@ describe("projectWideRetrieval", () => {
 
     test.each(negatives)("returns false for: %s", (query) => {
       expect(isFactualExtractionQuery(query)).toBe(false);
+    });
+  });
+
+  describe("isAnalyticalQuery", () => {
+    const positives = [
+      "analyze the payment risks",
+      "compare these two agreements",
+      "explain the termination clause",
+      "review the confidentiality terms",
+      "what are the legal risks",
+      "show the differences between versions",
+    ];
+
+    test.each(positives)("returns true for: %s", (query) => {
+      expect(isAnalyticalQuery(query)).toBe(true);
+    });
+
+    it("returns false for pinned document queries", () => {
+      expect(isAnalyticalQuery("@document/custom-documents/foo.pdf explain this")).toBe(
+        false
+      );
     });
   });
 
@@ -361,6 +385,13 @@ describe("projectWideRetrieval", () => {
   });
 
   describe("applyProjectWideSystemPrompt", () => {
+    it("appends analytical evidence instructions when analytical is true", () => {
+      const base = "Base system prompt.";
+      const result = applyProjectWideSystemPrompt(base, { analytical: true });
+      expect(result).toContain("Analytical query instructions");
+      expect(result).toContain("Cite document names");
+    });
+
     it("appends project-wide instructions when projectWide is true", () => {
       const base = "Base system prompt.";
       const result = applyProjectWideSystemPrompt(base, { projectWide: true });
@@ -436,6 +467,30 @@ describe("projectWideRetrieval", () => {
       );
       expect(result.projectWide).toBe(false);
       expect(result.sources).toHaveLength(1);
+    });
+
+    it("uses analytical topN for analyze/explain/review queries", async () => {
+      const performSimilaritySearch = jest.fn().mockResolvedValue({
+        contextTexts: ["chunk"],
+        sources: [{ id: "1", title: "Doc", text: "chunk", score: 0.5 }],
+        message: false,
+      });
+
+      const result = await performWorkspaceSimilaritySearch({
+        VectorDb: { performSimilaritySearch },
+        workspace,
+        input: "explain the legal risks in this retainer",
+        LLMConnector,
+        filterIdentifiers: [],
+      });
+
+      expect(performSimilaritySearch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          topN: ANALYTICAL_TOP_N,
+        })
+      );
+      expect(result.analytical).toBe(true);
+      expect(result.projectWide).toBe(false);
     });
 
     it("fetches 40 raw chunks and applies project-wide threshold for thematic queries", async () => {

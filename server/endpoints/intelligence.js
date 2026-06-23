@@ -1,5 +1,6 @@
 const { DocumentIntelligence } = require("../models/documentIntelligence");
 const { Document } = require("../models/documents");
+const { buildWorkspaceGraph } = require("../utils/workspaceGraph");
 const { validatedRequest } = require("../utils/middleware/validatedRequest");
 const {
   flexUserRoleValid,
@@ -73,6 +74,25 @@ function intelligenceEndpoints(app) {
         );
 
         return response.status(200).json({ query, intelligence });
+      } catch (error) {
+        console.error(error);
+        return response.sendStatus(500);
+      }
+    }
+  );
+
+  app.get(
+    "/workspace/:slug/intelligence/topic-graph",
+    [validatedRequest, flexUserRoleValid([ROLES.all]), validWorkspaceSlug],
+    async (_request, response) => {
+      try {
+        const workspace = response.locals.workspace;
+        const graph = await buildWorkspaceGraph({
+          workspaceId: workspace.id,
+          workspaceSlug: workspace.slug,
+        });
+
+        return response.status(200).json({ graph });
       } catch (error) {
         console.error(error);
         return response.sendStatus(500);

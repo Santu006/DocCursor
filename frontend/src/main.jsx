@@ -64,6 +64,22 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: "/workspace/:slug/topic-graph",
+        lazy: async () => {
+          const { default: TopicGraph } = await import("@/pages/TopicGraph");
+          return { element: <PrivateRoute Component={TopicGraph} /> };
+        },
+      },
+      {
+        path: "/workspace/:slug/executive-report",
+        lazy: async () => {
+          const { default: ExecutiveReport } = await import(
+            "@/pages/ExecutiveReport"
+          );
+          return { element: <PrivateRoute Component={ExecutiveReport} /> };
+        },
+      },
+      {
         path: "/workspace/:slug/reviews/:reviewId",
         lazy: async () => {
           const { default: ReviewDetail } = await import(

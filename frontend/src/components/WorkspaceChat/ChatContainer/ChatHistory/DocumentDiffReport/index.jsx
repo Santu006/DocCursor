@@ -39,6 +39,66 @@ function RiskScoreBadge({ score }) {
   );
 }
 
+function EvidenceBlock({ evidence = [], confidence = null }) {
+  const [open, setOpen] = useState(false);
+  const items = evidence?.length
+    ? evidence
+    : confidence != null
+      ? [{ confidence }]
+      : [];
+
+  if (!items.length) return null;
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="text-[11px] font-medium text-blue-300 hover:text-blue-200"
+      >
+        {open ? "Hide Evidence" : "View Evidence"}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2">
+          {items.map((item, index) => {
+            const score = item.similarityScore ?? item.confidence ?? confidence;
+            return (
+              <div
+                key={`${item.documentName || "evidence"}-${index}`}
+                className="rounded border border-white/10 bg-black/15 px-2.5 py-2 text-[11px] text-white/70"
+              >
+                {item.documentName && (
+                  <div>
+                    <span className="text-white/45">Document:</span>{" "}
+                    {item.documentName}
+                  </div>
+                )}
+                {item.sectionTitle && (
+                  <div>
+                    <span className="text-white/45">Section:</span>{" "}
+                    {item.sectionTitle}
+                  </div>
+                )}
+                {item.pageNumber != null && (
+                  <div>
+                    <span className="text-white/45">Page:</span> {item.pageNumber}
+                  </div>
+                )}
+                {score != null && (
+                  <div>
+                    <span className="text-white/45">Confidence:</span>{" "}
+                    {Math.round(score * 100)}%
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClauseList({
   title,
   items,
@@ -108,6 +168,11 @@ function ClauseList({
                   {item.financialImpact.next}
                 </p>
               )}
+
+            <EvidenceBlock
+              evidence={item.evidence}
+              confidence={item.confidence}
+            />
           </li>
         ))}
       </ul>

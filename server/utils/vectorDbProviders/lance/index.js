@@ -101,6 +101,42 @@ class LanceDb extends VectorDatabase {
   }
 
   /**
+   * Returns mean chunk embedding vectors grouped by document title.
+   * @param {string} namespace
+   * @returns {Promise<Record<string, number[]>>}
+   */
+  async getDocumentCentroidVectors(namespace = null) {
+    if (!namespace) return {};
+
+    const { client } = await this.connect();
+    if (!(await this.namespaceExists(client, namespace))) return {};
+
+    const table = await client.openTable(namespace);
+    const rows = await table.query().limit(10000).toArray();
+    const vectorsByTitle = {};
+
+    for (const row of rows) {
+      const title = row.title || "unknown-document";
+      const vector = row.vector;
+      if (!Array.isArray(vector) || vector.length === 0) continue;
+      if (!vectorsByTitle[title]) vectorsByTitle[title] = [];
+      vectorsByTitle[title].push(vector);
+    }
+
+    const centroids = {};
+    for (const [title, vectors] of Object.entries(vectorsByTitle)) {
+      const length = vectors[0].length;
+      const sums = new Array(length).fill(0);
+      for (const vector of vectors) {
+        for (let i = 0; i < length; i++) sums[i] += vector[i];
+      }
+      centroids[title] = sums.map((value) => value / vectors.length);
+    }
+
+    return centroids;
+  }
+
+  /**
    * Performs a SimilaritySearch + Reranking on a namespace.
    * @param {Object} params - The parameters for the rerankedSimilarityResponse.
    * @param {Object} params.client - The vectorDB client.

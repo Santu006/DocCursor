@@ -95,9 +95,11 @@ function extractDocumentPairFromQuery(message = "", documents = []) {
     const matchA = findBestDocumentMatch(refA, documents);
     const matchB = findBestDocumentMatch(refB, documents);
 
+    if (!matchA || !matchB) return null;
+
     return {
-      documentA: matchA?.docId || refA,
-      documentB: matchB?.docId || refB,
+      documentA: matchA.docId,
+      documentB: matchB.docId,
     };
   }
 
@@ -185,7 +187,8 @@ Rules:
 - Never paste sample language, case names, discovery templates, or boilerplate
 - Explain what changed, why it matters, and what risks/obligations shifted
 - Use concise business language like "Retainer deposit requirement added"
-- Do not reproduce full paragraphs from the documents`;
+- Do not reproduce full paragraphs from the documents
+- For each clause you mention, cite the document name and section from the comparison report evidence`;
 
 module.exports = {
   isDocumentDiffQuery,

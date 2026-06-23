@@ -2,7 +2,7 @@ import Workspace from "@/models/workspace";
 import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 import { Link, useParams } from "react-router-dom";
-import { Plus, CircleNotch, Trash, Scales } from "@phosphor-icons/react";
+import { Plus, CircleNotch, Trash, Scales, Graph, Briefcase } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import ThreadItem from "./ThreadItem";
 import useHoverMetaKey from "./hooks";
@@ -166,6 +166,24 @@ export default function ThreadContainer({
         <div className="flex w-full gap-x-2 items-center pl-4">
           <Scales size={16} />
           <span className="text-[13px]">Reviews</span>
+        </div>
+      </Link>
+      <Link
+        to={paths.workspace.topicGraph(workspace.slug)}
+        className="w-full relative flex h-[36px] items-center border-none hover:bg-[var(--theme-sidebar-thread-selected)] light:hover:bg-slate-300 rounded-lg text-theme-text-secondary hover:text-white"
+      >
+        <div className="flex w-full gap-x-2 items-center pl-4">
+          <Graph size={16} />
+          <span className="text-[13px]">Topic Graph</span>
+        </div>
+      </Link>
+      <Link
+        to={paths.workspace.executiveReport(workspace.slug)}
+        className="w-full relative flex h-[36px] items-center border-none hover:bg-[var(--theme-sidebar-thread-selected)] light:hover:bg-slate-300 rounded-lg text-theme-text-secondary hover:text-white"
+      >
+        <div className="flex w-full gap-x-2 items-center pl-4">
+          <Briefcase size={16} />
+          <span className="text-[13px]">Executive Report</span>
         </div>
       </Link>
       <NewThreadButton workspace={workspace} />

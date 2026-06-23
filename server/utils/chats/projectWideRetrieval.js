@@ -1,4 +1,5 @@
 const PROJECT_WIDE_CANDIDATE_LIMIT = 40;
+const ANALYTICAL_TOP_N = 20;
 const FACTUAL_EXTRACTION_THRESHOLD = 0.15;
 /** Thematic project-wide queries (e.g. "summarise all files") embed poorly vs legal text. */
 const PROJECT_WIDE_SIMILARITY_THRESHOLD = FACTUAL_EXTRACTION_THRESHOLD;
@@ -34,6 +35,18 @@ const FACTUAL_EXTRACTION_PATTERNS = [
 ];
 
 /**
+ * Patterns for analytical queries that benefit from deeper retrieval.
+ */
+const ANALYTICAL_QUERY_PATTERNS = [
+  /\banalyz(e|ing|es)?\b/i,
+  /\bcompare\b/i,
+  /\bexplain\b/i,
+  /\breview\b/i,
+  /\brisks?\b/i,
+  /\bdifferences?\b/i,
+];
+
+/**
  * @param {string} message
  * @returns {boolean}
  */
@@ -60,6 +73,20 @@ function isFactualExtractionQuery(message = "") {
 }
 
 /**
+ * @param {string} message
+ * @returns {boolean}
+ */
+function isAnalyticalQuery(message = "") {
+  if (!message || typeof message !== "string") return false;
+  const normalized = message.trim();
+  if (!normalized) return false;
+
+  if (/@document\//i.test(normalized)) return false;
+
+  return ANALYTICAL_QUERY_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+/**
  * @param {number} totalChunksInDocument
  * @returns {number}
  */
@@ -81,6 +108,13 @@ const PROJECT_WIDE_SYSTEM_INSTRUCTIONS = `Project-wide analysis instructions:
 - If information is missing, write "Not specified".
 - Ignore placeholders such as [dollar amount], ---, and blank template fields (e.g., underscores or unfilled form lines).`;
 
+const ANALYTICAL_SYSTEM_INSTRUCTIONS = `Analytical query instructions:
+- Support every major finding with evidence from the provided context.
+- Cite document names and section names when available.
+- Do not state conclusions unsupported by the retrieved documents.
+- Prefer evidence-backed findings over general knowledge.
+- If evidence is missing, say "Not specified in provided documents."`;
+
 /**
  * Build a bullet checklist of documents represented in structured context.
  *
@@ -98,6 +132,10 @@ function buildDocumentCoverageChecklist(documentsInContext = []) {
     text: `Documents represented in context:\n\n${bullets}`,
     documents,
   };
+}
+
+function getAnalyticalSystemInstructions() {
+  return ANALYTICAL_SYSTEM_INSTRUCTIONS;
 }
 
 /**
@@ -125,12 +163,21 @@ ${documentsToCover}`;
  * @returns {string}
  */
 function applyProjectWideSystemPrompt(systemPrompt = "", vectorSearchResults = {}) {
-  if (!vectorSearchResults?.projectWide) return systemPrompt;
-  const instructions = getProjectWideSystemInstructions(
-    vectorSearchResults.documentsInContext ?? []
-  );
-  if (!systemPrompt?.trim()) return instructions;
-  return `${systemPrompt.trim()}\n\n${instructions}`;
+  if (vectorSearchResults?.projectWide) {
+    const instructions = getProjectWideSystemInstructions(
+      vectorSearchResults.documentsInContext ?? []
+    );
+    if (!systemPrompt?.trim()) return instructions;
+    return `${systemPrompt.trim()}\n\n${instructions}`;
+  }
+
+  if (vectorSearchResults?.analytical) {
+    const instructions = getAnalyticalSystemInstructions();
+    if (!systemPrompt?.trim()) return instructions;
+    return `${systemPrompt.trim()}\n\n${instructions}`;
+  }
+
+  return systemPrompt;
 }
 
 /**
@@ -420,6 +467,7 @@ async function performWorkspaceSimilaritySearch({
   filterIdentifiers = [],
 }) {
   const projectWide = isProjectWideQuery(input);
+  const analytical = !projectWide && isAnalyticalQuery(input);
   const factualExtraction = isFactualExtractionQuery(input);
   const rerank = workspace?.vectorSearchMode === "rerank";
   const workspaceThreshold =
@@ -431,18 +479,24 @@ async function performWorkspaceSimilaritySearch({
     ? PROJECT_WIDE_SIMILARITY_THRESHOLD
     : workspaceThreshold;
 
+  const topN = projectWide
+    ? PROJECT_WIDE_CANDIDATE_LIMIT
+    : analytical
+      ? ANALYTICAL_TOP_N
+      : workspace?.topN || 4;
+
   const vectorSearchResults = await VectorDb.performSimilaritySearch({
     namespace: workspace.slug,
     input,
     LLMConnector,
     similarityThreshold: projectWide ? 0 : effectiveThreshold,
-    topN: projectWide ? PROJECT_WIDE_CANDIDATE_LIMIT : workspace?.topN || 4,
+    topN,
     filterIdentifiers,
     rerank,
   });
 
   if (!projectWide || vectorSearchResults.message) {
-    return { ...vectorSearchResults, projectWide: false };
+    return { ...vectorSearchResults, projectWide: false, analytical };
   }
 
   const rawSources = vectorSearchResults.sources ?? [];
@@ -529,7 +583,9 @@ function mergeRetrievalIntoContext({
 
   const { fillSourceWindow } = require("../helpers/chat");
   const filledSources = fillSourceWindow({
-    nDocs: workspace?.topN || 4,
+    nDocs: vectorSearchResults.analytical
+      ? ANALYTICAL_TOP_N
+      : workspace?.topN || 4,
     searchResults: vectorSearchResults.sources,
     history: rawHistory,
     filterIdentifiers: pinnedDocIdentifiers,
@@ -543,14 +599,18 @@ function mergeRetrievalIntoContext({
 
 module.exports = {
   PROJECT_WIDE_CANDIDATE_LIMIT,
+  ANALYTICAL_TOP_N,
   FACTUAL_EXTRACTION_THRESHOLD,
   PROJECT_WIDE_SIMILARITY_THRESHOLD,
   PROJECT_WIDE_SYSTEM_INSTRUCTIONS,
+  ANALYTICAL_SYSTEM_INSTRUCTIONS,
   PROJECT_WIDE_COVERAGE_ENFORCEMENT,
   isProjectWideQuery,
   isFactualExtractionQuery,
+  isAnalyticalQuery,
   getDynamicMaxChunksPerDoc,
   getProjectWideSystemInstructions,
+  getAnalyticalSystemInstructions,
   applyProjectWideSystemPrompt,
   buildDocumentCoverageChecklist,
   groupChunksByDocument,

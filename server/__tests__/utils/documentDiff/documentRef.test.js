@@ -38,4 +38,14 @@ describe("documentRef", () => {
     const match = findBestDocumentMatch("RETAINER AGREEMENT-2.pdf", docs);
     expect(match?.docId).toBe("b");
   });
+
+  it("matches shortened basic fee agreement references", () => {
+    const match = findBestDocumentMatch("Basic-Fee-Agreement.pdf", docs);
+    expect(match?.docId).toBe("a");
+  });
+
+  it("matches partial basic fee agreement name without extension", () => {
+    const match = findBestDocumentMatch("Basic-Fee-Agreement", docs);
+    expect(match?.docId).toBe("a");
+  });
 });

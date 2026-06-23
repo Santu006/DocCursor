@@ -8,6 +8,7 @@
  * @param {object|null} [params.llmAnalysis]
  * @returns {object}
  */
+const { buildDiffClauseEvidence } = require("../citations");
 function buildDiffReport({
   titleA,
   titleB,
@@ -27,17 +28,19 @@ function buildDiffReport({
     riskScore = null,
   } = diffResult;
 
+  const formatItem = (item) => formatClauseItem(item, { titleA, titleB });
+
   const added = clauseChanges
     .filter((c) => c.changeType === "added")
-    .map(formatClauseItem);
+    .map(formatItem);
 
   const removed = clauseChanges
     .filter((c) => c.changeType === "removed")
-    .map(formatClauseItem);
+    .map(formatItem);
 
   const modified = clauseChanges
     .filter((c) => c.changeType === "modified")
-    .map(formatClauseItem);
+    .map(formatItem);
 
   const executive = mergeExecutiveSummary(computedExecutive, llmAnalysis, {
     added,
@@ -78,7 +81,9 @@ function buildDiffReport({
     added,
     removed,
     modified,
-    clauseChanges: clauseChanges.map(formatClauseItem),
+    clauseChanges: clauseChanges.map((item) =>
+      formatClauseItem(item, { titleA, titleB })
+    ),
     riskChanges: llmAnalysis?.riskChanges?.length
       ? llmAnalysis.riskChanges
       : riskChanges,
@@ -115,9 +120,11 @@ function buildDiffReport({
 
 /**
  * @param {object} item
+ * @param {{ titleA: string, titleB: string }} titles
  * @returns {object}
  */
-function formatClauseItem(item) {
+function formatClauseItem(item, titles = {}) {
+  const { titleA = "", titleB = "" } = titles;
   return {
     title: item.title || item.label || item.section,
     summary: item.summary || item.title || item.label,
@@ -131,6 +138,7 @@ function formatClauseItem(item) {
     topics: item.topics || [],
     before: item.before,
     after: item.after,
+    evidence: buildDiffClauseEvidence(item, { titleA, titleB }),
   };
 }
 
@@ -297,7 +305,15 @@ function formatClauseLine(item, prefix) {
     item.confidence != null
       ? ` · Confidence: ${Math.round(item.confidence * 100)}%`
       : "";
-  return `- ${prefix} ${item.summary || item.title}${severity}${confidence}`;
+  const evidenceLine =
+    item.evidence?.[0]?.documentName
+      ? ` · Evidence: ${item.evidence[0].documentName}${
+          item.evidence[0].sectionTitle
+            ? ` (${item.evidence[0].sectionTitle})`
+            : ""
+        }`
+      : "";
+  return `- ${prefix} ${item.summary || item.title}${severity}${confidence}${evidenceLine}`;
 }
 
 /**
