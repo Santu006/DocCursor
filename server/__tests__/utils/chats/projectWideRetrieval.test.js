@@ -469,6 +469,31 @@ describe("projectWideRetrieval", () => {
       expect(result.sources).toHaveLength(1);
     });
 
+    it("passes selectedDocumentIds and skips project-wide scope", async () => {
+      const performSimilaritySearch = jest.fn().mockResolvedValue({
+        contextTexts: ["chunk"],
+        sources: [{ id: "1", title: "Doc", text: "chunk", score: 0.5 }],
+        message: false,
+      });
+
+      const result = await performWorkspaceSimilaritySearch({
+        VectorDb: { performSimilaritySearch },
+        workspace,
+        input: "summarize all files",
+        LLMConnector,
+        filterIdentifiers: [],
+        selectedDocumentIds: ["doc-a"],
+      });
+
+      expect(performSimilaritySearch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          includeDocumentIds: ["doc-a"],
+          topN: 4,
+        })
+      );
+      expect(result.projectWide).toBe(false);
+    });
+
     it("uses analytical topN for analyze/explain/review queries", async () => {
       const performSimilaritySearch = jest.fn().mockResolvedValue({
         contextTexts: ["chunk"],

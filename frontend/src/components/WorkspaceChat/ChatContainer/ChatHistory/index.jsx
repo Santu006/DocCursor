@@ -27,6 +27,7 @@ import useTextSize from "@/hooks/useTextSize";
 import useChatHistoryScrollHandle from "@/hooks/useChatHistoryScrollHandle";
 import { ThoughtExpansionProvider } from "./ThoughtContainer";
 import { MessageActionsProvider } from "./MessageActionsContext";
+import { CHAT_CONTENT_CLASS } from "@/components/lib/MinimalUI/constants";
 
 export default forwardRef(function (
   {
@@ -130,6 +131,8 @@ export default forwardRef(function (
         history: updatedHistory,
         attachments,
         rerunChatId: chatId,
+        selectedDocumentIds:
+          updatedHistory[targetIdx]?.selectedDocumentIds ?? [],
       });
     },
     [workspace.slug, threadSlug]
@@ -159,6 +162,7 @@ export default forwardRef(function (
         saveEditedMessage,
         forkThread,
         websocket,
+        sendCommand,
       }),
     [
       workspace,
@@ -193,7 +197,7 @@ export default forwardRef(function (
           ref={chatHistoryRef}
           onScroll={debouncedScroll}
         >
-          <div className="w-full max-w-[750px]">
+          <div className={CHAT_CONTENT_CLASS}>
             {compiledHistory.map((item, index) =>
               Array.isArray(item) ? renderStatusResponse(item, index) : item
             )}
@@ -255,6 +259,7 @@ function buildMessages({
   saveEditedMessage,
   forkThread,
   websocket,
+  sendCommand,
 }) {
   return history.reduce((acc, props, index) => {
     const isLastBotReply =
@@ -334,6 +339,7 @@ function buildMessages({
     } else if (props.type === "fileDownloadCard" && !!props.content) {
       acc.push(<FileDownloadCard key={props.uuid} props={props} />);
     } else if (isLastBotReply && props.animate) {
+      const lastUserMessage = history.findLast((msg) => msg.role === "user");
       acc.push(
         <PromptReply
           key={`prompt-reply-${props.uuid || index}`}
@@ -343,6 +349,18 @@ function buildMessages({
           sources={props.sources}
           error={props.error}
           closed={props.closed}
+          onRetry={
+            props.error && lastUserMessage
+              ? () =>
+                  sendCommand({
+                    text: lastUserMessage.content,
+                    autoSubmit: true,
+                    history: history.slice(0, -1),
+                    attachments: lastUserMessage.attachments,
+                  })
+              : null
+          }
+          workspaceSummaryMetadata={props.workspaceSummaryMetadata}
         />
       );
     } else {
@@ -365,6 +383,7 @@ function buildMessages({
           metrics={props.metrics}
           outputs={props.outputs}
           clarifyingQuestions={props.clarifyingQuestions}
+          workspaceSummaryMetadata={props.workspaceSummaryMetadata}
           isEdited={props.isEdited}
         />
       );

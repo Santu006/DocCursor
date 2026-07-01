@@ -457,6 +457,8 @@ async function resolveIntelligenceByTitles(workspaceId, documentTitles = []) {
  * @param {string} params.input
  * @param {object} params.LLMConnector
  * @param {string[]} [params.filterIdentifiers]
+ * @param {string[]} [params.selectedDocumentIds]
+ * @param {boolean} [params.forceProjectWide]
  * @returns {Promise<{ contextTexts: string[], sources: object[], message: string|boolean, projectWide: boolean }>}
  */
 async function performWorkspaceSimilaritySearch({
@@ -465,9 +467,15 @@ async function performWorkspaceSimilaritySearch({
   input,
   LLMConnector,
   filterIdentifiers = [],
+  selectedDocumentIds = [],
+  forceProjectWide = false,
 }) {
-  const projectWide = isProjectWideQuery(input);
-  const analytical = !projectWide && isAnalyticalQuery(input);
+  const hasDocScope =
+    Array.isArray(selectedDocumentIds) && selectedDocumentIds.length > 0;
+  const projectWide = hasDocScope
+    ? false
+    : forceProjectWide || isProjectWideQuery(input);
+  const analytical = !projectWide && !hasDocScope && isAnalyticalQuery(input);
   const factualExtraction = isFactualExtractionQuery(input);
   const rerank = workspace?.vectorSearchMode === "rerank";
   const workspaceThreshold =
@@ -492,6 +500,7 @@ async function performWorkspaceSimilaritySearch({
     similarityThreshold: projectWide ? 0 : effectiveThreshold,
     topN,
     filterIdentifiers,
+    includeDocumentIds: hasDocScope ? selectedDocumentIds : [],
     rerank,
   });
 

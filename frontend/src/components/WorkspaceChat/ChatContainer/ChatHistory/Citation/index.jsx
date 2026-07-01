@@ -11,6 +11,7 @@ import {
   YoutubeLogo,
   LinkSimple,
   GitlabLogo,
+  CaretRight,
 } from "@phosphor-icons/react";
 import GmailLogo from "@/pages/Admin/Agents/GMailSkillPanel/gmail.png";
 import GoogleCalendarLogo from "@/pages/Admin/Agents/GoogleCalendarSkillPanel/google-calendar.png";
@@ -133,11 +134,11 @@ export default function Citations({ sources = [] }) {
     sources: currentSources,
   } = useSourcesSidebar();
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+
   if (sources.length === 0) return null;
 
   const combined = combineLikeSources(sources);
-  const visibleSources = combined.slice(0, 3);
-  const remainingCount = Math.max(0, combined.length - 3);
 
   function handleOpenSourcesSidebar() {
     if (sidebarOpen && sources === currentSources) {
@@ -148,44 +149,45 @@ export default function Citations({ sources = [] }) {
   }
 
   return (
-    <button
-      onClick={handleOpenSourcesSidebar}
-      className="w-fit flex items-center gap-[5px] px-[10px] py-[4px] rounded-full hover:bg-white/5 light:hover:bg-black/5 transition-colors"
-      type="button"
-    >
-      <span className="text-xs text-white light:text-slate-800">
-        {t("chat_window.sources")}
-      </span>
-      <div
-        className="relative h-[22px]"
-        style={{ width: `${visibleSources.length * 17 + 5}px` }}
+    <div className="mt-2">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="inline-flex items-center gap-1.5 text-xs text-white/45 light:text-slate-500 hover:text-white/70 light:hover:text-slate-700 transition-colors border-none bg-transparent cursor-pointer p-0"
+        type="button"
       >
-        {visibleSources.map((source, idx) => {
-          const info = parseChunkSource(source);
-          const customImage = CIRCLE_IMAGES[info.icon];
-          return (
-            <div
-              key={source.title || idx}
-              className={`absolute top-0 size-[22px] rounded-full ${customImage ? "border-none" : "border-2 border-zinc-800 light:border-white"}`}
-              style={{ left: `${idx * 17}px`, zIndex: 3 - idx }}
-            >
-              <SourceTypeCircle
-                type={info.icon}
-                size={18}
-                iconSize={10}
-                url={info.href}
-                customImage={customImage}
-              />
-            </div>
-          );
-        })}
-      </div>
-      {remainingCount > 0 && (
-        <span className="text-xs text-white light:text-slate-800">
-          + {remainingCount}
-        </span>
+        <CaretRight
+          size={12}
+          className={`transition-transform ${expanded ? "rotate-90" : ""}`}
+        />
+        {combined.length} {t("chat_window.sources").toLowerCase()}
+      </button>
+      {expanded && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleOpenSourcesSidebar}
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-white/70 light:text-slate-600 hover:bg-white/5 light:hover:bg-black/5 transition-colors border border-white/10 light:border-slate-200"
+            type="button"
+          >
+            {combined.slice(0, 3).map((source, idx) => {
+              const info = parseChunkSource(source);
+              const customImage = CIRCLE_IMAGES[info.icon];
+              return (
+                <SourceTypeCircle
+                  key={source.title || idx}
+                  type={info.icon}
+                  size={16}
+                  iconSize={9}
+                  url={info.href}
+                  customImage={customImage}
+                />
+              );
+            })}
+            {combined.length > 3 && <span>+{combined.length - 3}</span>}
+            <span className="ml-1">View evidence</span>
+          </button>
+        </div>
       )}
-    </button>
+    </div>
   );
 }
 

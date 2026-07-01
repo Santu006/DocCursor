@@ -16,6 +16,19 @@ import { useTranslation } from "react-i18next";
 import Appearance from "@/models/appearance";
 import usePromptInputStorage from "@/hooks/usePromptInputStorage";
 import ToolsMenu, { TOOLS_MENU_KEYBOARD_EVENT } from "./ToolsMenu";
+import {
+  DocumentMentionChips,
+  DocumentMentionPicker,
+  DocumentContextDropZone,
+  DOCUMENT_MENTION_KEYBOARD_EVENT,
+  detectMentionAtCursor,
+  useDocumentMention,
+} from "../DocumentMention";
+import {
+  FOCUS_PROMPT_INPUT_EVENT,
+  OPEN_DOCUMENT_MENTION_PICKER_EVENT,
+  SET_PROMPT_MESSAGE_EVENT,
+} from "@/utils/documentContext";
 import { useSearchParams } from "react-router-dom";
 import { useIsAgentSessionActive } from "@/utils/chat/agent";
 
@@ -51,6 +64,8 @@ export default function PromptInput({
   const [showTools, setShowTools] = useState(false);
   const autoOpenedToolsRef = useRef(false);
   const toolsHighlightRef = useRef(-1);
+  const mentionHighlightRef = useRef(0);
+  const mentionRangeRef = useRef({ start: -1, end: -1 });
   const formRef = useRef(null);
   const textareaRef = useRef(null);
   const [_, setFocused] = useState(false);
@@ -58,6 +73,9 @@ export default function PromptInput({
   const redoStack = useRef([]);
   const { textSizeClass } = useTextSize();
   const [searchParams] = useSearchParams();
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const { addDocument } = useDocumentMention();
 
   // Synchronizes prompt input value with localStorage, scoped to the current thread.
   usePromptInputStorage({
@@ -99,6 +117,43 @@ export default function PromptInput({
   }, []);
 
   useEffect(() => {
+    function onFocusPrompt() {
+      textareaRef.current?.focus();
+    }
+    function onOpenPicker() {
+      setMentionOpen(true);
+      setMentionQuery("");
+      mentionRangeRef.current = { start: -1, end: -1 };
+      textareaRef.current?.focus();
+    }
+    function onSetPromptMessage(event) {
+      const { message = "", autoSubmit = false } = event.detail || {};
+      setPromptInput(message);
+      setMentionOpen(false);
+      setMentionQuery("");
+      if (autoSubmit) {
+        setTimeout(() => {
+          formRef.current?.requestSubmit();
+        }, 0);
+      } else {
+        setTimeout(() => textareaRef.current?.focus(), 0);
+      }
+    }
+
+    window.addEventListener(FOCUS_PROMPT_INPUT_EVENT, onFocusPrompt);
+    window.addEventListener(OPEN_DOCUMENT_MENTION_PICKER_EVENT, onOpenPicker);
+    window.addEventListener(SET_PROMPT_MESSAGE_EVENT, onSetPromptMessage);
+    return () => {
+      window.removeEventListener(FOCUS_PROMPT_INPUT_EVENT, onFocusPrompt);
+      window.removeEventListener(
+        OPEN_DOCUMENT_MENTION_PICKER_EVENT,
+        onOpenPicker
+      );
+      window.removeEventListener(SET_PROMPT_MESSAGE_EVENT, onSetPromptMessage);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isStreaming && textareaRef.current) textareaRef.current.focus();
     resetTextAreaHeight();
   }, [isStreaming]);
@@ -137,6 +192,33 @@ export default function PromptInput({
    * @param {KeyboardEvent} event
    */
   function captureEnterOrUndo(event) {
+    // Forward keyboard events to document mention picker when open
+    if (mentionOpen) {
+      if (["ArrowUp", "ArrowDown"].includes(event.key)) {
+        event.preventDefault();
+        window.dispatchEvent(
+          new CustomEvent(DOCUMENT_MENTION_KEYBOARD_EVENT, {
+            detail: { key: event.key },
+          })
+        );
+        return;
+      }
+      if (event.key === "Enter" && mentionHighlightRef.current >= 0) {
+        event.preventDefault();
+        window.dispatchEvent(
+          new CustomEvent(DOCUMENT_MENTION_KEYBOARD_EVENT, {
+            detail: { key: "Enter" },
+          })
+        );
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionOpen(false);
+        return;
+      }
+    }
+
     // Forward keyboard events to the ToolsMenu when open
     if (showTools) {
       if (
@@ -298,11 +380,43 @@ export default function PromptInput({
     return;
   }
 
+  function syncMentionState(value, cursorPos) {
+    const mention = detectMentionAtCursor(value, cursorPos);
+    mentionRangeRef.current = { start: mention.start, end: mention.end };
+    setMentionOpen(mention.active);
+    setMentionQuery(mention.query);
+  }
+
+  function handleMentionSelect(doc) {
+    if (!doc) return;
+    addDocument(doc);
+    const textarea = textareaRef.current;
+    const { start, end } = mentionRangeRef.current;
+    if (textarea && start >= 0) {
+      const before = promptInput.slice(0, start);
+      const after = promptInput.slice(end);
+      const nextValue = `${before}${after}`;
+      setPromptInput(nextValue);
+      setTimeout(() => {
+        textarea.focus();
+        const cursor = before.length;
+        textarea.setSelectionRange(cursor, cursor);
+        setMentionOpen(false);
+        setMentionQuery("");
+      }, 0);
+    } else {
+      setMentionOpen(false);
+      setMentionQuery("");
+      textareaRef.current?.focus();
+    }
+  }
+
   function handleChange(e) {
     debouncedSaveState(-1);
     adjustTextArea(e);
     const value = e.target.value;
     setPromptInput(value);
+    syncMentionState(value, e.target.selectionStart);
 
     // Auto-dismiss the tools menu when the "/" that opened it is modified
     if (autoOpenedToolsRef.current && showTools && value !== "/") {
@@ -325,13 +439,13 @@ export default function PromptInput({
         className={
           centered
             ? "flex flex-col gap-y-1 rounded-t-lg w-full items-center"
-            : "flex flex-col gap-y-1 rounded-t-lg md:w-full w-full mx-auto max-w-[750px] items-center"
+            : "flex flex-col gap-y-1 rounded-t-lg md:w-full w-full mx-auto max-w-[80%] items-center"
         }
       >
         <div
           className={`flex items-center rounded-lg md:w-full ${centered ? "mb-0" : "mb-4"}`}
         >
-          <div className="relative w-[95vw] md:w-[750px]">
+          <div className="relative w-[95vw] md:w-full max-w-[80%]">
             <ToolsMenu
               workspace={workspace}
               showing={showTools}
@@ -341,7 +455,18 @@ export default function PromptInput({
               centered={centered}
               highlightedIndexRef={toolsHighlightRef}
             />
-            <div className="bg-zinc-800 light:bg-white light:border light:border-slate-300 rounded-[20px] pwa:rounded-3xl flex flex-col px-5 overflow-hidden">
+            <DocumentContextDropZone
+              workspaceSlug={workspaceSlug || workspace?.slug}
+              className="w-full"
+            >
+            <div className="bg-zinc-800 light:bg-white light:border light:border-slate-300 rounded-[20px] pwa:rounded-3xl flex flex-col px-5 overflow-hidden relative">
+              <DocumentMentionPicker
+                open={mentionOpen}
+                query={mentionQuery}
+                onSelect={handleMentionSelect}
+                highlightedIndexRef={mentionHighlightRef}
+              />
+              <DocumentMentionChips />
               <AttachmentManager attachments={attachments} />
               <div className="flex items-center">
                 <textarea
@@ -400,6 +525,7 @@ export default function PromptInput({
                 </div>
               </div>
             </div>
+            </DocumentContextDropZone>
           </div>
         </div>
       </form>

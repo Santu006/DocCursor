@@ -23,6 +23,8 @@ export default function handleChat(
     action = null,
     metrics = {},
     routedTo = null,
+    replace = false,
+    workspaceSummaryMetadata = null,
   } = chatResult;
 
   if (type === "modelRouteNotification") {
@@ -135,8 +137,13 @@ export default function handleChat(
       } else {
         updatedHistory = {
           ...existingHistory,
-          content: existingHistory.content + textResponse,
+          content: replace
+            ? textResponse
+            : existingHistory.content + textResponse,
           ...(sources && sources.length > 0 ? { sources } : {}),
+          ...(workspaceSummaryMetadata
+            ? { workspaceSummaryMetadata }
+            : {}),
           error,
           closed: close,
           animate: !close,
@@ -158,6 +165,7 @@ export default function handleChat(
         pending: false,
         chatId,
         metrics,
+        ...(workspaceSummaryMetadata ? { workspaceSummaryMetadata } : {}),
       });
     }
     setChatHistory([..._chatHistory]);

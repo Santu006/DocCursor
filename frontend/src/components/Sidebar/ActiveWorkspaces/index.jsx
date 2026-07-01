@@ -100,7 +100,10 @@ export default function ActiveWorkspaces({ showNewWsModal }) {
         System.localFiles(),
       ]);
       const docpaths = workspace?.documents?.map((doc) => doc.docpath) ?? [];
-      const files = flattenWorkspaceDocuments(localFiles, docpaths);
+      const files = flattenWorkspaceDocuments(
+        localFiles,
+        workspace?.documents || []
+      );
       setFilesCache((prev) => ({ ...prev, [wsSlug]: files }));
       setDocCounts((prev) => ({ ...prev, [wsSlug]: docpaths.length }));
     } catch (error) {
@@ -349,6 +352,7 @@ export default function ActiveWorkspaces({ showNewWsModal }) {
                           <WorkspaceFolderTree
                             files={filesCache[workspace.slug]}
                             loading={loadingTree[workspace.slug]}
+                            workspaceSlug={workspace.slug}
                             onFileClick={(file) => handleFileOpen(file, workspace)}
                           />
                         )}

@@ -48,6 +48,7 @@ const { memoryEndpoints } = require("./endpoints/memory");
 const { intelligenceEndpoints } = require("./endpoints/intelligence");
 const { workspaceGraphEndpoints } = require("./endpoints/workspaceGraph");
 const { workspaceReportEndpoints } = require("./endpoints/workspaceReport");
+const { folderUploadEndpoints } = require("./endpoints/folderUpload");
 const { diffEndpoints } = require("./endpoints/diff");
 const { reviewsEndpoints } = require("./endpoints/reviews");
 const { httpLogger } = require("./middleware/httpLogger");
@@ -112,6 +113,7 @@ memoryEndpoints(apiRouter);
 intelligenceEndpoints(apiRouter);
 workspaceGraphEndpoints(apiRouter);
 workspaceReportEndpoints(apiRouter);
+folderUploadEndpoints(apiRouter);
 diffEndpoints(apiRouter);
 reviewsEndpoints(apiRouter);
 // Externally facing embedder endpoints

@@ -1,16 +1,23 @@
 import { getFileExtension } from "@/utils/directories";
+import { mapWorkspaceDocuments } from "@/utils/documentMentionModel";
 
 /**
  * Flat list of workspace documents (no storage-folder grouping).
  *
  * @param {object} localFiles - Response from System.localFiles()
- * @param {string[]} docpaths - workspace.documents[].docpath values
- * @returns {{ id: string, title: string, name: string, docpath: string, extension: string }[]}
+ * @param {object[]} workspaceDocuments - workspace.documents from API
+ * @returns {{ id: string, docId: string, title: string, name: string, docpath: string, extension: string, filename: string, label: string, mentionType: string }[]}
  */
-export function flattenWorkspaceDocuments(localFiles, docpaths = []) {
-  if (!localFiles?.items?.length || !docpaths?.length) return [];
+export function flattenWorkspaceDocuments(localFiles, workspaceDocuments = []) {
+  if (!localFiles?.items?.length || !workspaceDocuments?.length) return [];
 
-  const docpathSet = new Set(docpaths);
+  const docpathToMention = new Map(
+    mapWorkspaceDocuments(workspaceDocuments).map((doc) => {
+      const wsDoc = workspaceDocuments.find((d) => d.docId === doc.docId);
+      return [wsDoc?.docpath, doc];
+    })
+  );
+
   const files = [];
 
   for (const folder of localFiles.items) {
@@ -20,14 +27,19 @@ export function flattenWorkspaceDocuments(localFiles, docpaths = []) {
       if (file.type !== "file") continue;
 
       const docpath = `${folder.name}/${file.name}`;
-      if (!docpathSet.has(docpath)) continue;
+      const mention = docpathToMention.get(docpath);
+      if (!mention) continue;
 
       const displayName = file.title || file.name;
       files.push({
         id: file.id || docpath,
+        docId: mention.docId,
         title: displayName,
         name: file.name,
         docpath,
+        filename: mention.filename,
+        label: mention.label,
+        mentionType: mention.mentionType,
         extension: getFileExtension(displayName),
       });
     }

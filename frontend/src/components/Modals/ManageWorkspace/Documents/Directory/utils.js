@@ -60,3 +60,20 @@ export function filterFileSearchResults(files = [], searchTerm = "") {
 
   return searchResult;
 }
+
+export function applyTypeFilter(folders = [], typeFilter = "all") {
+  if (!typeFilter || typeFilter === "all") return folders;
+
+  return folders
+    .map((folder) => ({
+      ...folder,
+      items: (folder.items || []).filter((file) => {
+        const ext = file.name?.split(".").pop()?.toLowerCase() || "";
+        if (typeFilter === "docx") return ext === "docx" || ext === "doc";
+        if (typeFilter === "xlsx") return ext === "xlsx" || ext === "xls";
+        if (typeFilter === "txt") return ext === "txt" || ext === "md";
+        return ext === typeFilter;
+      }),
+    }))
+    .filter((folder) => folder.items?.length > 0);
+}

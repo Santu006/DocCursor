@@ -25,25 +25,42 @@ import { ChatTooltips } from "./ChatTooltips";
 import { MetricsProvider } from "./ChatHistory/HistoricalMessage/Actions/RenderMetrics";
 import useChatContainerQuickScroll from "@/hooks/useChatContainerQuickScroll";
 import { PENDING_HOME_MESSAGE } from "@/utils/constants";
+import { consumePendingDocumentContext, AUTO_SUBMIT_CHAT_EVENT } from "@/utils/documentContext";
 import { clearPromptInputDraft } from "@/hooks/usePromptInputStorage";
 import { safeJsonParse } from "@/utils/request";
-import { useTranslation } from "react-i18next";
 import paths from "@/utils/paths";
-import QuickActions from "@/components/lib/QuickActions";
 import SuggestedMessages from "@/components/lib/SuggestedMessages";
+import EmptyWorkspace from "@/components/lib/MinimalUI/EmptyWorkspace";
+import { CHAT_CONTENT_CLASS } from "@/components/lib/MinimalUI/constants";
+import ManageWorkspace, {
+  useManageWorkspaceModal,
+} from "@/components/Modals/ManageWorkspace";
 import ChatSettingsMenu from "./ChatSettingsMenu";
 import WorkspaceModelPicker from "./WorkspaceModelPicker";
 import { ChatSidebarProvider } from "./ChatSidebar";
 import SourcesSidebar from "./SourcesSidebar";
 import MemoriesSidebar from "./MemoriesSidebar";
+import {
+  DocumentMentionProvider,
+  useDocumentMention,
+} from "./DocumentMention";
 
-export default function ChatContainer({
+export default function ChatContainer(props) {
+  return (
+    <DocumentMentionProvider workspaceSlug={props.workspace?.slug}>
+      <ChatContainerView {...props} />
+    </DocumentMentionProvider>
+  );
+}
+
+function ChatContainerView({
   workspace,
   threadSlug = null,
   knownHistory = [],
 }) {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { selectedDocumentIds, clearDocuments, applyDocumentContextAction } =
+    useDocumentMention();
   const [loadingResponse, setLoadingResponse] = useState(false);
   const [chatHistory, setChatHistory] = useState(knownHistory);
   const [socketId, setSocketId] = useState(null);
@@ -53,6 +70,8 @@ export default function ChatContainer({
   const pendingMessageChecked = useRef(false);
   const pendingResetRef = useRef(false);
   const activeThreadSlug = threadSlug;
+  const { showing: showingManageWorkspace, showModal: showManageWorkspace, hideModal: hideManageWorkspace } =
+    useManageWorkspaceModal();
 
   const isEmpty =
     chatHistory.length === 0 && !sessionStorage.getItem(PENDING_HOME_MESSAGE);
@@ -114,6 +133,7 @@ export default function ChatContainer({
           JSON.stringify({
             message: currentMessage,
             attachments: parseAttachments(),
+            selectedDocumentIds: [...selectedDocumentIds],
           })
         );
         navigate(paths.workspace.thread(workspace.slug, thread.slug));
@@ -121,28 +141,31 @@ export default function ChatContainer({
       }
     }
 
-    const prevChatHistory = [
+    if (listening) {
+      endSTTSession();
+    }
+    const mentionIds = [...selectedDocumentIds];
+    setChatHistory([
       ...chatHistory,
       {
         content: currentMessage,
         role: "user",
         attachments: parseAttachments(),
+        selectedDocumentIds: mentionIds,
       },
       {
         content: "",
         role: "assistant",
         pending: true,
         userMessage: currentMessage,
+        attachments: parseAttachments(),
+        selectedDocumentIds: mentionIds,
         animate: true,
       },
-    ];
-
-    if (listening) {
-      endSTTSession();
-    }
-    setChatHistory(prevChatHistory);
+    ]);
     setMessageEmit("");
     setLoadingResponse(true);
+    clearDocuments();
   };
 
   function endSTTSession() {
@@ -169,6 +192,7 @@ export default function ChatContainer({
     attachments = [],
     writeMode = "replace",
     rerunChatId = null,
+    selectedDocumentIds: overrideDocumentIds = null,
   } = {}) => {
     // If we are not auto-submitting, we can just emit the text to the prompt input.
     if (!autoSubmit) {
@@ -199,7 +223,11 @@ export default function ChatContainer({
       if (thread) {
         sessionStorage.setItem(
           PENDING_HOME_MESSAGE,
-          JSON.stringify({ message: text, attachments })
+          JSON.stringify({
+            message: text,
+            attachments,
+            selectedDocumentIds: overrideDocumentIds ?? [...selectedDocumentIds],
+          })
         );
         navigate(paths.workspace.thread(workspace.slug, thread.slug));
         return;
@@ -213,6 +241,8 @@ export default function ChatContainer({
 
     // If we are auto-submitting
     // Then we can replace the current text since this is not accumulating.
+    const mentionIds =
+      overrideDocumentIds ?? [...selectedDocumentIds];
     let prevChatHistory;
     if (history.length > 0) {
       // use pre-determined history chain.
@@ -224,6 +254,7 @@ export default function ChatContainer({
           pending: true,
           userMessage: text,
           attachments,
+          selectedDocumentIds: mentionIds,
           animate: true,
           rerunChatId,
         },
@@ -235,6 +266,7 @@ export default function ChatContainer({
           content: text,
           role: "user",
           attachments,
+          selectedDocumentIds: mentionIds,
         },
         {
           content: "",
@@ -242,6 +274,7 @@ export default function ChatContainer({
           pending: true,
           userMessage: text,
           attachments,
+          selectedDocumentIds: mentionIds,
           animate: true,
         },
       ];
@@ -250,6 +283,7 @@ export default function ChatContainer({
     setChatHistory(prevChatHistory);
     setMessageEmit("");
     setLoadingResponse(true);
+    clearDocuments();
   };
 
   sendCommandRef.current = sendCommand;
@@ -269,12 +303,39 @@ export default function ChatContainer({
             autoSubmit: true,
             history: filteredHistory,
             attachments: lastUserMessage?.attachments,
+            selectedDocumentIds: lastUserMessage?.selectedDocumentIds ?? [],
           })
         )
         .catch((e) => console.error(e));
     },
     [workspace.slug]
   );
+
+  useEffect(() => {
+    function onAutoSubmit(event) {
+      const { message, selectedDocumentIds: docIds = [] } = event.detail || {};
+      if (!message) return;
+      sendCommandRef.current?.({
+        text: message,
+        autoSubmit: true,
+        selectedDocumentIds: docIds,
+      });
+    }
+    window.addEventListener(AUTO_SUBMIT_CHAT_EVENT, onAutoSubmit);
+    return () => window.removeEventListener(AUTO_SUBMIT_CHAT_EVENT, onAutoSubmit);
+  }, []);
+
+  const pendingContextChecked = useRef(false);
+
+  useEffect(() => {
+    if (pendingContextChecked.current || !workspace?.slug) return;
+    pendingContextChecked.current = true;
+
+    const pending = consumePendingDocumentContext();
+    if (pending?.document?.docId) {
+      setTimeout(() => applyDocumentContextAction(pending), 150);
+    }
+  }, [workspace?.slug, applyDocumentContextAction]);
 
   useEffect(() => {
     if (pendingMessageChecked.current || !workspace?.slug) return;
@@ -287,6 +348,7 @@ export default function ChatContainer({
         sendCommand({
           text: pending.message,
           attachments: pending.attachments || [],
+          selectedDocumentIds: pending.selectedDocumentIds || [],
           autoSubmit: true,
         });
       }, 100);
@@ -326,6 +388,7 @@ export default function ChatContainer({
       // If running and edit or regeneration, this history will already have attachments
       // so no need to parse the current state.
       const attachments = promptMessage?.attachments ?? parseAttachments();
+      const scopedDocumentIds = promptMessage?.selectedDocumentIds ?? [];
       window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
 
       await Workspace.multiplexStream({
@@ -342,6 +405,7 @@ export default function ChatContainer({
             setSocketId
           ),
         attachments,
+        selectedDocumentIds: scopedDocumentIds,
         rerunChatId: promptMessage?.rerunChatId ?? null,
       });
       return;
@@ -459,10 +523,11 @@ export default function ChatContainer({
             <WorkspaceModelPicker workspaceSlug={workspace.slug} />
             <DnDFileUploaderWrapper>
               <div className="flex flex-col h-full w-full items-center justify-center">
-                <div className="flex flex-col items-center w-full max-w-[750px]">
-                  <h1 className="text-white text-xl md:text-2xl mb-11 text-center">
-                    {t("main-page.greeting")}
-                  </h1>
+                <div className={`flex flex-col items-center ${CHAT_CONTENT_CLASS}`}>
+                  <EmptyWorkspace
+                    workspaceName={workspace?.name}
+                    onUpload={showManageWorkspace}
+                  />
                   <PromptInput
                     workspace={workspace}
                     submit={handleSubmit}
@@ -470,20 +535,6 @@ export default function ChatContainer({
                     sendCommand={sendCommand}
                     attachments={files}
                     centered={true}
-                  />
-                  <QuickActions
-                    hasAvailableWorkspace={!!workspace}
-                    onCreateAgent={() => navigate(paths.settings.agentSkills())}
-                    onEditWorkspace={() =>
-                      navigate(
-                        paths.workspace.settings.generalAppearance(
-                          workspace.slug
-                        )
-                      )
-                    }
-                    onUploadDocument={() =>
-                      document.getElementById("dnd-chat-file-uploader")?.click()
-                    }
                   />
                 </div>
                 <SuggestedMessages
@@ -493,6 +544,12 @@ export default function ChatContainer({
               </div>
             </DnDFileUploaderWrapper>
             <ChatTooltips />
+            {showingManageWorkspace && (
+              <ManageWorkspace
+                hideModal={hideManageWorkspace}
+                providedSlug={workspace.slug}
+              />
+            )}
           </div>
           <MemoriesSidebar workspace={workspace} />
         </div>

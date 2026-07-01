@@ -8,11 +8,22 @@ import { ArrowUUpLeft, Eye, File, PushPin } from "@phosphor-icons/react";
 import Workspace from "@/models/workspace";
 import showToast from "@/utils/toast";
 import System from "@/models/system";
+import {
+  DocumentContextMenu,
+  useDocumentContextMenu,
+} from "@/components/DocumentContext";
+import {
+  notifyWorkspaceDocumentsChanged,
+  resolveDocumentMention,
+} from "@/utils/documentContext";
+import useContextDragSource from "@/components/WorkspaceChat/ChatContainer/DocumentMention/useContextDragSource";
 
 export default function WorkspaceFileRow({
   item,
   folderName,
   workspace,
+  workspaceDocuments = [],
+  contextDragItems = [],
   setLoading,
   setLoadingMessage,
   fetchKeys,
@@ -23,6 +34,20 @@ export default function WorkspaceFileRow({
   disableSelection,
   setSelectedItems,
 }) {
+  const { menu, openMenu, closeMenu } = useDocumentContextMenu();
+  const docpath = `${folderName}/${item.name}`;
+  const documentMention = resolveDocumentMention(workspaceDocuments, docpath);
+  const drag = useContextDragSource({
+    workspaceSlug: workspace.slug,
+    items: contextDragItems.length ? contextDragItems : documentMention,
+    disabled:
+      (!documentMention?.docId && !contextDragItems.length) || hasChanges,
+  });
+
+  const handleContextMenu = (event) => {
+    if (!documentMention || hasChanges) return;
+    openMenu(event, documentMention);
+  };
   const onRemoveClick = async (e) => {
     e.stopPropagation();
     setLoading(true);
@@ -34,6 +59,7 @@ export default function WorkspaceFileRow({
         deletes: [`${folderName}/${item.name}`],
       });
       await fetchKeys(true);
+      notifyWorkspaceDocumentsChanged(workspace.slug);
     } catch (error) {
       console.error("Failed to remove document:", error);
     }
@@ -55,7 +81,11 @@ export default function WorkspaceFileRow({
 
   const isMovedItem = movedItems?.some((movedItem) => movedItem.id === item.id);
   return (
+    <>
     <div
+      draggable={drag.draggable}
+      onDragStart={drag.onDragStart}
+      onDragEnd={drag.onDragEnd}
       className={`text-theme-text-primary text-xs grid grid-cols-12 py-2 pl-3.5 pr-8 h-[34px] items-center file-row ${
         !disableSelection
           ? "hover:bg-theme-file-picker-hover cursor-pointer"
@@ -64,6 +94,7 @@ export default function WorkspaceFileRow({
         selected ? "selected light:text-white" : ""
       }`}
       onClick={toggleRowSelection}
+      onContextMenu={handleContextMenu}
     >
       <div
         className="col-span-10 w-fit flex gap-x-[2px] items-center relative"
@@ -117,6 +148,15 @@ export default function WorkspaceFileRow({
         )}
       </div>
     </div>
+    <DocumentContextMenu
+      visible={menu.visible}
+      x={menu.x}
+      y={menu.y}
+      document={menu.document}
+      workspaceSlug={workspace.slug}
+      onClose={closeMenu}
+    />
+    </>
   );
 }
 

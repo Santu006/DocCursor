@@ -20,9 +20,13 @@ import { safeJsonParse } from "@/utils/request";
 import { useTranslation } from "react-i18next";
 import { middleTruncate } from "@/utils/directories";
 import { useEmbeddingProgress } from "@/EmbeddingProgressContext";
+import { notifyWorkspaceDocumentsChanged, resolveDocumentMention } from "@/utils/documentContext";
+import CompactProgress from "@/components/lib/MinimalUI/CompactProgress";
+import CollapsibleSection from "@/components/lib/MinimalUI/CollapsibleSection";
 
 function WorkspaceDirectory({
   workspace,
+  workspaceDocuments = [],
   files,
   highlightWorkspace,
   loading,
@@ -88,6 +92,7 @@ function WorkspaceDirectory({
       });
       await fetchKeys(true);
       setSelectedItems({});
+      notifyWorkspaceDocumentsChanged(workspace.slug);
     } catch (error) {
       console.error("Failed to remove documents:", error);
     }
@@ -122,46 +127,58 @@ function WorkspaceDirectory({
   }
 
   if (embeddingProgress) {
+    const entries = Object.entries(embeddingProgress);
+    const completeCount = entries.filter(([, s]) => s.status === "complete").length;
+    const failedCount = entries.filter(([, s]) => s.status === "failed").length;
+    const inProgress = entries.find(([, s]) => s.status === "embedding");
+
     return (
       <div className="px-8">
-        <div className="flex items-center justify-start w-[560px]">
-          <h3 className="text-white text-base font-bold ml-5">
-            {workspace.name}
-          </h3>
+        <div className="flex items-center justify-start w-full max-w-[520px]">
+          <h3 className="text-white text-sm font-medium ml-5">{workspace.name}</h3>
         </div>
-        <div className="relative w-[560px] h-[445px] bg-theme-settings-input-bg rounded-2xl mt-5 border border-theme-modal-border">
-          <div className="text-white/80 text-xs grid grid-cols-12 py-2 px-3.5 border-b border-white/20 light:border-theme-modal-border bg-theme-settings-input-bg sticky top-0 z-10 rounded-t-2xl">
-            <div className="col-span-8 flex items-center gap-x-[4px]">
-              <div className="shrink-0 w-3 h-3" />
-              <p className="ml-[7px] text-theme-text-primary">Name</p>
+        <div className="relative w-full max-w-[520px] mt-4 px-5">
+          <CompactProgress
+            label="Embedding documents"
+            current={completeCount}
+            total={entries.length}
+            detail={
+              inProgress
+                ? getDisplayName(inProgress[0])
+                : failedCount > 0
+                  ? `${failedCount} failed`
+                  : null
+            }
+          />
+          <CollapsibleSection
+            title="File details"
+            badge={entries.length}
+            className="mt-3"
+          >
+            <div className="max-h-40 overflow-y-auto space-y-0.5">
+              {entries.map(([filename, fileStatus]) => (
+                <EmbeddingFileRow
+                  key={filename}
+                  filename={filename}
+                  status={fileStatus}
+                  onRemove={
+                    fileStatus.status === "pending"
+                      ? () => removeQueuedFile(workspace.slug, filename)
+                      : null
+                  }
+                />
+              ))}
             </div>
-            <p className="col-span-4 text-right text-theme-text-primary pr-1">
-              Status
-            </p>
-          </div>
-          <div className="overflow-y-auto h-[calc(100%-40px)]">
-            {Object.entries(embeddingProgress).map(([filename, fileStatus]) => (
-              <EmbeddingFileRow
-                key={filename}
-                filename={filename}
-                status={fileStatus}
-                onRemove={
-                  fileStatus.status === "pending"
-                    ? () => removeQueuedFile(workspace.slug, filename)
-                    : null
-                }
-              />
-            ))}
-          </div>
+          </CollapsibleSection>
         </div>
         {hasChanges && movedItems.length > 0 && (
-          <div className="flex items-center justify-between w-[560px] mt-3">
-            <p className="text-theme-text-secondary text-sm">
-              {movedItems.length} additional file(s) ready to embed
+          <div className="flex items-center justify-between w-full max-w-[520px] mt-3 px-5">
+            <p className="text-theme-text-secondary text-xs">
+              {movedItems.length} file(s) ready to embed
             </p>
             <button
               onClick={handleSaveChanges}
-              className="border border-slate-200 px-5 py-1.5 rounded-lg text-white text-sm items-center flex gap-x-2 hover:bg-slate-200 hover:text-slate-800 focus:ring-gray-800"
+              className="border border-slate-200 px-3 py-1 rounded-md text-white text-xs hover:bg-slate-200 hover:text-slate-800"
             >
               Add to queue
             </button>
@@ -230,12 +247,39 @@ function WorkspaceDirectory({
                   movedItems={movedItems}
                   workspace={workspace}
                 >
-                  {({ item, folder }) => (
+                  {({ item, folder }) => {
+                    const docpath = `${folder.name}/${item.name}`;
+                    const mention = resolveDocumentMention(
+                      workspaceDocuments,
+                      docpath
+                    );
+                    const selectedCount = Object.keys(selectedItems).length;
+                    let contextDragItems = mention ? [mention] : [];
+                    if (selectedItems[item.id] && selectedCount > 1) {
+                      contextDragItems = (files?.items ?? [])
+                        .flatMap((entry) => entry.items || [])
+                        .filter((file) => selectedItems[file.id])
+                        .map((file) => {
+                          const parentFolder = files.items.find((entry) =>
+                            entry.items?.includes(file)
+                          );
+                          if (!parentFolder) return null;
+                          return resolveDocumentMention(
+                            workspaceDocuments,
+                            `${parentFolder.name}/${file.name}`
+                          );
+                        })
+                        .filter(Boolean);
+                    }
+
+                    return (
                     <WorkspaceFileRow
                       key={item.id}
                       item={item}
                       folderName={folder.name}
                       workspace={workspace}
+                      workspaceDocuments={workspaceDocuments}
+                      contextDragItems={contextDragItems}
                       setLoading={setLoading}
                       setLoadingMessage={setLoadingMessage}
                       fetchKeys={fetchKeys}
@@ -246,7 +290,8 @@ function WorkspaceDirectory({
                       disableSelection={hasChanges}
                       setSelectedItems={setSelectedItems}
                     />
-                  )}
+                    );
+                  }}
                 </RenderFileRows>
               ) : (
                 <div className="w-full h-full flex items-center justify-center">

@@ -8,14 +8,13 @@ const { containsAdvisoryLanguage } = require("../workspaceReport/objectivity");
  * Patterns for executive workspace report queries.
  */
 const EXECUTIVE_REPORT_PATTERNS = [
-  /\bsummari[sz]e\s+(this\s+)?(workspace|project)\b/i,
   /\bexecutive\s+report\b/i,
-  /\bworkspace\s+(briefing|summary|overview)\b/i,
+  /\bexecutive\s+briefing\b/i,
+  /\bworkspace\s+(briefing|overview)\b/i,
   /\bwhat\s+should\s+i\s+review\s+first\b/i,
   /\b(show|list|what\s+are)\s+(the\s+)?key\s+risks?\b/i,
   /\bkey\s+risks?\s+(in|for|across)\s+(this\s+)?(workspace|project)\b/i,
   /\brecommended\s+(documents?|files?)\s+(for\s+)?review\b/i,
-  /\bexecutive\s+briefing\b/i,
 ];
 
 /**

@@ -47,6 +47,22 @@ class LanceDb extends VectorDatabase {
     return 1 - distance;
   }
 
+  async resolveIncludeVectorIds(includeDocumentIds = []) {
+    if (!Array.isArray(includeDocumentIds) || includeDocumentIds.length === 0) {
+      return null;
+    }
+    const { DocumentVectors } = require("../../../models/vectors");
+    const rows = await DocumentVectors.where({
+      docId: { in: includeDocumentIds },
+    });
+    return new Set(rows.map((row) => row.vectorId));
+  }
+
+  passesIncludeVectorFilter(rest, includeVectorIds) {
+    if (includeVectorIds === null) return true;
+    return includeVectorIds.has(rest.id);
+  }
+
   async heartbeat() {
     await this.connect();
     return { heartbeat: Number(new Date()) };
@@ -156,6 +172,7 @@ class LanceDb extends VectorDatabase {
     topN = 4,
     similarityThreshold = 0.25,
     filterIdentifiers = [],
+    includeVectorIds = null,
   }) {
     const reranker = new NativeEmbeddingReranker();
     const collection = await client.openTable(namespace);
@@ -196,6 +213,7 @@ class LanceDb extends VectorDatabase {
           if (this.distanceToSimilarity(item._distance) < similarityThreshold)
             return;
           const { vector: _, ...rest } = item;
+          if (!this.passesIncludeVectorFilter(rest, includeVectorIds)) return;
           if (filterIdentifiers.includes(sourceIdentifier(rest))) {
             this.logger(
               "A source was filtered from context as it's parent document is pinned."
@@ -239,6 +257,7 @@ class LanceDb extends VectorDatabase {
     similarityThreshold = 0.25,
     topN = 4,
     filterIdentifiers = [],
+    includeVectorIds = null,
   }) {
     const collection = await client.openTable(namespace);
     const result = {
@@ -247,16 +266,21 @@ class LanceDb extends VectorDatabase {
       scores: [],
     };
 
+    const searchLimit =
+      includeVectorIds !== null ? Math.max(topN * 20, 50) : topN;
+
     const response = await collection
       .vectorSearch(queryVector)
       .distanceType("cosine")
-      .limit(topN)
+      .limit(searchLimit)
       .toArray();
 
     response.forEach((item) => {
+      if (result.sourceDocuments.length >= topN) return;
       if (this.distanceToSimilarity(item._distance) < similarityThreshold)
         return;
       const { vector: _, ...rest } = item;
+      if (!this.passesIncludeVectorFilter(rest, includeVectorIds)) return;
       if (filterIdentifiers.includes(sourceIdentifier(rest))) {
         this.logger(
           "A source was filtered from context as it's parent document is pinned."
@@ -473,6 +497,7 @@ class LanceDb extends VectorDatabase {
     similarityThreshold = 0.25,
     topN = 4,
     filterIdentifiers = [],
+    includeDocumentIds = [],
     rerank = false,
   }) {
     if (!namespace || !input || !LLMConnector)
@@ -487,6 +512,17 @@ class LanceDb extends VectorDatabase {
       };
     }
 
+    const includeVectorIds = await this.resolveIncludeVectorIds(
+      includeDocumentIds
+    );
+    if (includeVectorIds !== null && includeVectorIds.size === 0) {
+      return {
+        contextTexts: [],
+        sources: [],
+        message: false,
+      };
+    }
+
     const queryVector = await LLMConnector.embedTextInput(input);
     const result = rerank
       ? await this.rerankedSimilarityResponse({
@@ -497,6 +533,7 @@ class LanceDb extends VectorDatabase {
           similarityThreshold,
           topN,
           filterIdentifiers,
+          includeVectorIds,
         })
       : await this.similarityResponse({
           client,
@@ -505,6 +542,7 @@ class LanceDb extends VectorDatabase {
           similarityThreshold,
           topN,
           filterIdentifiers,
+          includeVectorIds,
         });
 
     const { contextTexts, sourceDocuments } = result;

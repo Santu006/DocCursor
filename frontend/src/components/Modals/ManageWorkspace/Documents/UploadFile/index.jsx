@@ -6,6 +6,7 @@ import System from "../../../../../models/system";
 import { useDropzone } from "react-dropzone";
 import { v4 } from "uuid";
 import FileUploadProgress from "./FileUploadProgress";
+import FolderUploadPanel from "./FolderUpload";
 import Workspace from "../../../../../models/workspace";
 import debounce from "lodash.debounce";
 
@@ -133,6 +134,15 @@ export default function UploadFile({
       </div>
       <div className="text-center text-white text-opacity-50 text-xs font-medium w-[560px] py-2">
         {t("connectors.upload.or-submit-link")}
+      </div>
+      <div className="mb-4">
+        <FolderUploadPanel
+          workspace={workspace}
+          fetchKeys={fetchKeys}
+          setLoading={setLoading}
+          setLoadingMessage={setLoadingMessage}
+          disabled={!ready}
+        />
       </div>
       <form onSubmit={handleSendLink} className="flex gap-x-2">
         <input

@@ -158,6 +158,7 @@ const Workspace = {
     prompt,
     chatHandler,
     attachments = [],
+    selectedDocumentIds = [],
     rerunChatId = null,
   }) {
     if (!!threadSlug)
@@ -166,6 +167,7 @@ const Workspace = {
         prompt,
         chatHandler,
         attachments,
+        selectedDocumentIds,
         rerunChatId
       );
     return this.streamChat(
@@ -173,6 +175,7 @@ const Workspace = {
       prompt,
       chatHandler,
       attachments,
+      selectedDocumentIds,
       rerunChatId
     );
   },
@@ -181,6 +184,7 @@ const Workspace = {
     message,
     handleChat,
     attachments = [],
+    selectedDocumentIds = [],
     rerunChatId = null
   ) {
     const ctrl = new AbortController();
@@ -196,7 +200,7 @@ const Workspace = {
 
     await fetchEventSource(`${API_BASE}/workspace/${slug}/stream-chat`, {
       method: "POST",
-      body: JSON.stringify({ message, attachments, rerunChatId }),
+      body: JSON.stringify({ message, attachments, selectedDocumentIds, rerunChatId }),
       headers: baseHeaders(),
       signal: ctrl.signal,
       openWhenHidden: true,

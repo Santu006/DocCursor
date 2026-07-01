@@ -112,6 +112,32 @@ const DocumentIntelligence = {
     }
   },
 
+  /**
+   * Load every complete intelligence record for a workspace (batched for scale).
+   * @param {number} workspaceId
+   * @param {{ batchSize?: number }} [options]
+   * @returns {Promise<object[]>}
+   */
+  loadAllComplete: async function (workspaceId, { batchSize = 500 } = {}) {
+    const all = [];
+    let offset = 0;
+    const pageSize = Math.max(1, Number(batchSize) || 500);
+
+    while (true) {
+      const batch = await this.forWorkspace(workspaceId, {
+        status: "complete",
+        limit: pageSize,
+        offset,
+      });
+      if (!batch.length) break;
+      all.push(...batch);
+      if (batch.length < pageSize) break;
+      offset += batch.length;
+    }
+
+    return all;
+  },
+
   statusCounts: async function (workspaceId) {
     try {
       const rows = await prisma.document_intelligence.groupBy({

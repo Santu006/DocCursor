@@ -218,6 +218,9 @@ function convertToChatHistory(history = []) {
         ...(data?.clarifyingQuestions?.length > 0
           ? { clarifyingQuestions: data.clarifyingQuestions }
           : {}),
+        ...(data?.workspaceSummaryMetadata
+          ? { workspaceSummaryMetadata: data.workspaceSummaryMetadata }
+          : {}),
       },
     ]);
   }

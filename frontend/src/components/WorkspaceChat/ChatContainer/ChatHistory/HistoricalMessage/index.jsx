@@ -1,5 +1,6 @@
 import React, { memo, useLayoutEffect, useRef, useState } from "react";
-import { Info, Warning } from "@phosphor-icons/react";
+import { Info } from "@phosphor-icons/react";
+import CompactError from "@/components/lib/MinimalUI/CompactError";
 import Actions from "./Actions";
 import renderMarkdown from "@/utils/chat/markdown";
 import Citations from "../Citation";
@@ -22,6 +23,7 @@ import HistoricalOutputs from "./HistoricalOutputs";
 import HistoricalClarifyingQuestions from "./HistoricalClarifyingQuestions";
 import { openImageLightbox } from "@/components/ImageLightbox";
 import ViewPreviousVersion from "./ViewPreviousVersion";
+import WorkspaceSummaryKpis from "../WorkspaceSummaryKpis";
 
 const HistoricalMessage = ({
   uuid: uuidProp,
@@ -41,6 +43,7 @@ const HistoricalMessage = ({
   outputs = [],
   clarifyingQuestions = [],
   isEdited = false,
+  workspaceSummaryMetadata = null,
 }) => {
   // Freeze uuid on first render. User messages arrive without a uuid and this value
   // is used as the wrapper div's `key` — a default param fallback would regenerate
@@ -66,16 +69,15 @@ const HistoricalMessage = ({
   if (!!error) {
     return (
       <div key={uuid} className="flex justify-start w-full">
-        <div className="py-4 pl-0 pr-4 flex flex-col md:max-w-[80%]">
-          <div className="p-2 rounded-lg bg-red-50 text-red-500">
-            <span className="inline-block">
-              <Warning className="h-4 w-4 mb-1 inline-block" /> Could not
-              respond to message.
-            </span>
-            <p className="text-xs font-mono mt-2 border-l-2 border-red-300 pl-2 bg-red-200 p-2 rounded-sm">
-              {error}
-            </p>
-          </div>
+        <div className="py-3 pl-0 pr-4 flex flex-col w-full">
+          <CompactError
+            message={error}
+            onRetry={
+              isLastMessage && chatId && regenerateMessage
+                ? () => regenerateMessage(chatId)
+                : null
+            }
+          />
         </div>
       </div>
     );
@@ -150,6 +152,7 @@ const HistoricalMessage = ({
       <div className="py-4 px-4 md:pl-0 flex flex-col w-full">
         <div className="break-words">
           <HistoricalClarifyingQuestions surveys={clarifyingQuestions} />
+          <WorkspaceSummaryKpis metadata={workspaceSummaryMetadata} />
           <RenderChatContent role={role} message={message} messageId={uuid} />
             {isRefusalMessage && (
               <Link

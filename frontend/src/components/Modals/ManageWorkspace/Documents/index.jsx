@@ -6,6 +6,7 @@ import System from "../../../../models/system";
 import showToast from "../../../../utils/toast";
 import Directory from "./Directory";
 import WorkspaceDirectory from "./WorkspaceDirectory";
+import { notifyWorkspaceDocumentsChanged } from "@/utils/documentContext";
 import { useWorkspaceEmbeddingProgress } from "@/EmbeddingProgressContext";
 
 export default function DocumentSettings({ workspace }) {
@@ -14,6 +15,9 @@ export default function DocumentSettings({ workspace }) {
   const [availableDocs, setAvailableDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [workspaceDocs, setWorkspaceDocs] = useState([]);
+  const [workspaceDocuments, setWorkspaceDocuments] = useState(
+    workspace.documents || []
+  );
   const [selectedItems, setSelectedItems] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
   const [movedItems, setMovedItems] = useState([]);
@@ -91,6 +95,8 @@ export default function DocumentSettings({ workspace }) {
 
     setAvailableDocs(filteredAvailableDocs);
     setWorkspaceDocs(filteredWorkspaceDocs);
+    setWorkspaceDocuments(currentWorkspace.documents || []);
+    notifyWorkspaceDocumentsChanged(workspace.slug);
 
     if (autoSelectNew) {
       const newSelected = {};
@@ -302,6 +308,7 @@ export default function DocumentSettings({ workspace }) {
       </div>
       <WorkspaceDirectory
         workspace={workspace}
+        workspaceDocuments={workspaceDocuments}
         files={workspaceDocs}
         highlightWorkspace={highlightWorkspace}
         loading={loading}

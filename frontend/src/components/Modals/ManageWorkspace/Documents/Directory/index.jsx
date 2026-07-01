@@ -12,7 +12,7 @@ import MoveToFolderIcon from "./MoveToFolderIcon";
 import { useModal } from "@/hooks/useModal";
 import NewFolderModal from "./NewFolderModal";
 import debounce from "lodash.debounce";
-import { filterFileSearchResults } from "./utils";
+import { filterFileSearchResults, applyTypeFilter } from "./utils";
 import ContextMenu from "./ContextMenu";
 import { Tooltip } from "react-tooltip";
 import { safeJsonParse } from "@/utils/request";
@@ -37,6 +37,7 @@ function Directory({
   const [amountSelected, setAmountSelected] = useState(0);
   const [showFolderSelection, setShowFolderSelection] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
   const {
     isOpen: isFolderModalOpen,
     openModal: openFolderModal,
@@ -184,7 +185,18 @@ function Directory({
     setSearchTerm(searchValue);
   }, 500);
 
-  const filteredFiles = filterFileSearchResults(files, searchTerm);
+  const filteredFiles = applyTypeFilter(
+    filterFileSearchResults(files, searchTerm),
+    typeFilter
+  );
+
+  const TYPE_FILTERS = [
+    { id: "all", label: "All" },
+    { id: "pdf", label: "PDF" },
+    { id: "docx", label: "Word" },
+    { id: "xlsx", label: "Excel" },
+    { id: "txt", label: "Text" },
+  ];
 
   const handleContextMenu = (event) => {
     event.preventDefault();
@@ -204,8 +216,8 @@ function Directory({
     <>
       <div className="px-8 pb-8" onContextMenu={handleContextMenu}>
         <div className="flex flex-col gap-y-6">
-          <div className="flex items-center justify-between w-[560px] px-5 relative">
-            <h3 className="text-white text-base font-bold">
+          <div className="flex items-center justify-between w-full max-w-[520px] px-5 relative">
+            <h3 className="text-white text-sm font-medium">
               {t("connectors.directory.my-documents")}
             </h3>
             <div className="relative">
@@ -213,11 +225,11 @@ function Directory({
                 type="search"
                 placeholder={t("connectors.directory.search-document")}
                 onChange={handleSearch}
-                className="border-none search-input bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder focus:outline-primary-button active:outline-primary-button outline-none text-sm rounded-lg pl-9 pr-2.5 py-2 w-[250px] h-[32px] light:border-theme-modal-border light:border"
+                className="border-none search-input bg-theme-settings-input-bg text-white placeholder:text-theme-settings-input-placeholder focus:outline-primary-button active:outline-primary-button outline-none text-xs rounded-md pl-8 pr-2 py-1.5 w-[200px] h-[28px] light:border-theme-modal-border light:border"
               />
               <MagnifyingGlass
-                size={14}
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white"
+                size={13}
+                className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-white/60"
                 weight="bold"
               />
             </div>
@@ -236,8 +248,25 @@ function Directory({
             </button>
           </div>
 
-          <div className="relative w-[560px] h-[310px] bg-theme-settings-input-bg rounded-2xl overflow-hidden border border-theme-modal-border">
-            <div className="absolute top-0 left-0 right-0 z-10 rounded-t-2xl text-theme-text-primary text-xs grid grid-cols-12 py-2 px-8 border-b border-white/20 light:border-theme-modal-border bg-theme-settings-input-bg">
+          <div className="flex flex-wrap gap-1.5 px-5 w-full max-w-[520px]">
+            {TYPE_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setTypeFilter(f.id)}
+                className={`text-[11px] px-2 py-0.5 rounded-md border-none cursor-pointer transition-colors ${
+                  typeFilter === f.id
+                    ? "bg-white/15 text-white"
+                    : "bg-transparent text-white/45 hover:text-white/70"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative w-full max-w-[520px] h-[280px] bg-theme-settings-input-bg rounded-lg overflow-hidden border border-theme-modal-border">
+            <div className="absolute top-0 left-0 right-0 z-10 rounded-t-lg text-theme-text-primary text-[11px] grid grid-cols-12 py-1.5 px-4 border-b border-white/10 bg-theme-settings-input-bg">
               <p className="col-span-6">Name</p>
               {totalDocCount > 0 && (
                 <p className="col-span-6 text-right text-theme-text-secondary">

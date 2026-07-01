@@ -7,6 +7,7 @@ import Workspace from "@/models/workspace";
 import showToast from "@/utils/toast";
 import FileUploadWarningModal from "./FileUploadWarningModal";
 import pluralize from "pluralize";
+import { isContextDragEvent } from "@/utils/documentContextDrag";
 
 export const DndUploaderContext = createContext();
 export const REMOVE_ATTACHMENT_EVENT = "ATTACHMENT_REMOVE";
@@ -426,8 +427,14 @@ export default function DnDFileUploaderWrapper({ children }) {
     disabled: !ready,
     noClick: true,
     noKeyboard: true,
-    onDragEnter: () => setDragging(true),
-    onDragLeave: () => setDragging(false),
+    onDragEnter: (event) => {
+      if (isContextDragEvent(event.dataTransfer)) return;
+      setDragging(true);
+    },
+    onDragLeave: (event) => {
+      if (isContextDragEvent(event.dataTransfer)) return;
+      setDragging(false);
+    },
   });
 
   return (

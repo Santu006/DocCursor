@@ -195,10 +195,47 @@ function handleAudioUpload(request, response, next) {
   });
 }
 
+/**
+ * Handle batch folder uploads with relative paths preserved in request body.
+ *
+ * @param {import("express").Request} request
+ * @param {import("express").Response} response
+ * @param {import("express").NextFunction} next
+ */
+function handleFolderBatchUpload(request, response, next) {
+  const upload = multer({ storage: fileUploadStorage }).array("files", 1000);
+  upload(request, response, function (err) {
+    if (err) {
+      response
+        .status(500)
+        .json({
+          success: false,
+          error: `Invalid folder upload. ${err.message}`,
+        })
+        .end();
+      return;
+    }
+
+    let relativePaths = [];
+    try {
+      relativePaths = JSON.parse(request.body?.relativePaths || "[]");
+    } catch {
+      relativePaths = [];
+    }
+
+    for (const [index, file] of (request.files || []).entries()) {
+      file.relativePath = relativePaths[index] || file.originalname;
+    }
+
+    next();
+  });
+}
+
 module.exports = {
   handleFileUpload,
   handleAPIFileUpload,
   handleAssetUpload,
   handlePfpUpload,
   handleAudioUpload,
+  handleFolderBatchUpload,
 };

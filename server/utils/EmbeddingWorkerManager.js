@@ -192,6 +192,10 @@ function isNativeEmbedder() {
   return !engine || engine === "native";
 }
 
+function getEmbedEventHistory(slug) {
+  return eventHistory.get(slug) || [];
+}
+
 module.exports = {
   emitProgress,
   addSSEConnection,
@@ -199,4 +203,5 @@ module.exports = {
   embedFiles,
   removeQueuedFile,
   isNativeEmbedder,
+  getEmbedEventHistory,
 };

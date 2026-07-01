@@ -73,7 +73,7 @@ function FileUploadProgressComponent({
       <div
         className={`${
           isFadingOut ? "file-upload-fadeout" : "file-upload"
-        } h-14 px-2 py-2 flex items-center gap-x-4 rounded-lg bg-error/40 light:bg-error/30 light:border-solid light:border-error/40 border border-transparent`}
+        } h-9 px-2 py-1 flex items-center gap-x-2 rounded-md bg-white/5 light:bg-error/20 border border-white/10 light:border-error/30`}
       >
         <div className="w-6 h-6 flex-shrink-0">
           <XCircle
@@ -98,7 +98,7 @@ function FileUploadProgressComponent({
       <div
         className={`${
           isFadingOut ? "file-upload-fadeout" : "file-upload"
-        } h-14 px-2 py-2 flex items-center gap-x-4 rounded-lg bg-error/40 light:bg-error/30 light:border-solid light:border-error/40 border border-transparent`}
+        } h-9 px-2 py-1 flex items-center gap-x-2 rounded-md bg-white/5 light:bg-error/20 border border-white/10 light:border-error/30`}
       >
         <div className="w-6 h-6 flex-shrink-0">
           <XCircle
@@ -122,7 +122,7 @@ function FileUploadProgressComponent({
     <div
       className={`${
         isFadingOut ? "file-upload-fadeout" : "file-upload"
-      } h-14 px-2 py-2 flex items-center gap-x-4 rounded-lg bg-zinc-800 light:border-solid light:border-theme-modal-border light:bg-theme-bg-sidebar border border-white/20 shadow-md`}
+      } h-9 px-2 py-1 flex items-center gap-x-2 rounded-md bg-zinc-800/80 light:border light:border-theme-modal-border light:bg-theme-bg-sidebar border border-white/10`}
     >
       <div className="w-6 h-6 flex-shrink-0">
         {status !== "complete" ? (

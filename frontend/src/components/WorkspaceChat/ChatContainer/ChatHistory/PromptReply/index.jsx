@@ -1,24 +1,33 @@
 /* eslint-disable react-hooks/refs */
 import { memo, useRef, useEffect } from "react";
-import { Warning } from "@phosphor-icons/react";
 import renderMarkdown from "@/utils/chat/markdown";
 import DOMPurify from "@/utils/chat/purify";
 import Citations from "../Citation";
+import CompactError from "@/components/lib/MinimalUI/CompactError";
 import {
   THOUGHT_REGEX_CLOSE,
   THOUGHT_REGEX_COMPLETE,
   THOUGHT_REGEX_OPEN,
   ThoughtChainComponent,
 } from "../ThoughtContainer";
+import WorkspaceSummaryKpis from "../WorkspaceSummaryKpis";
 
-const PromptReply = ({ uuid, reply, pending, error, sources = [] }) => {
+const PromptReply = ({
+  uuid,
+  reply,
+  pending,
+  error,
+  sources = [],
+  onRetry,
+  workspaceSummaryMetadata = null,
+}) => {
   if (!reply && sources.length === 0 && !pending && !error) return null;
 
   if (pending) {
     return (
       <div className="flex justify-start w-full">
-        <div className="py-4 pl-0 pr-4 flex flex-col md:max-w-[80%]">
-          <div className="mt-3 ml-1 dot-falling light:invert"></div>
+        <div className="py-3 pl-0 pr-4 flex flex-col w-full">
+          <div className="mt-2 ml-1 dot-falling light:invert"></div>
         </div>
       </div>
     );
@@ -27,12 +36,8 @@ const PromptReply = ({ uuid, reply, pending, error, sources = [] }) => {
   if (error) {
     return (
       <div className="flex justify-start w-full">
-        <div className="py-4 pl-0 pr-4 flex flex-col md:max-w-[80%]">
-          <span className="inline-block p-2 rounded-lg bg-red-50 text-red-500">
-            <Warning className="h-4 w-4 mb-1 inline-block" /> Could not respond
-            to message.
-            <span className="text-xs">Reason: {error || "unknown"}</span>
-          </span>
+        <div className="py-3 pl-0 pr-4 flex flex-col w-full">
+          <CompactError message={error} onRetry={onRetry} />
         </div>
       </div>
     );
@@ -40,7 +45,8 @@ const PromptReply = ({ uuid, reply, pending, error, sources = [] }) => {
 
   return (
     <div key={uuid} className="flex justify-start w-full">
-      <div className="py-4 pl-0 pr-4 flex flex-col w-full">
+      <div className="py-3 pl-0 pr-4 flex flex-col w-full">
+        <WorkspaceSummaryKpis metadata={workspaceSummaryMetadata} />
         <RenderAssistantChatContent
           key={`${uuid}-prompt-reply-content`}
           message={reply}

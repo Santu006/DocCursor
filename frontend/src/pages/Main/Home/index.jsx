@@ -20,8 +20,13 @@ import Workspace from "@/models/workspace";
 import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 import { safeJsonParse } from "@/utils/request";
-import QuickActions from "@/components/lib/QuickActions";
+import EmptyWorkspace from "@/components/lib/MinimalUI/EmptyWorkspace";
+import { CHAT_CONTENT_CLASS } from "@/components/lib/MinimalUI/constants";
 import SuggestedMessages from "@/components/lib/SuggestedMessages";
+import ManageWorkspace, {
+  useManageWorkspaceModal,
+} from "@/components/Modals/ManageWorkspace";
+import { DocumentMentionProvider, useDocumentMention } from "@/components/WorkspaceChat/ChatContainer/DocumentMention";
 import useUser from "@/hooks/useUser";
 import ChatSettingsMenu from "@/components/WorkspaceChat/ChatContainer/ChatSettingsMenu";
 import WorkspaceModelPicker from "@/components/WorkspaceChat/ChatContainer/WorkspaceModelPicker";
@@ -186,7 +191,11 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [manageWorkspaceSlug, setManageWorkspaceSlug] = useState(null);
+  const { selectedDocumentIds, clearDocuments } = useDocumentMention();
   const { files, parseAttachments } = useContext(DndUploaderContext);
+  const { showing: showingManageWorkspace, showModal: showManageWorkspace, hideModal: hideManageWorkspace } =
+    useManageWorkspaceModal();
 
   useEffect(() => {
     if (!threadSlug) {
@@ -222,10 +231,16 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
         if (thread) setThreadSlug(thread.slug);
       }
 
+      const mentionIds = [...selectedDocumentIds];
       sessionStorage.setItem(
         PENDING_HOME_MESSAGE,
-        JSON.stringify({ message, attachments })
+        JSON.stringify({
+          message,
+          attachments,
+          selectedDocumentIds: mentionIds,
+        })
       );
+      clearDocuments();
 
       if (targetThread) {
         navigate(paths.workspace.thread(targetWorkspace.slug, targetThread));
@@ -268,22 +283,9 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
     );
   }
 
-  async function handleEditWorkspace() {
-    let targetWorkspace = workspace;
-
-    if (!targetWorkspace) {
-      targetWorkspace = await createDefaultWorkspace(
-        t("new-workspace.placeholder")
-      );
-      if (!targetWorkspace) return;
-      setWorkspace(targetWorkspace);
-    }
-
-    navigate(paths.workspace.settings.generalAppearance(targetWorkspace.slug));
-  }
-
   return (
-    <ChatSidebarProvider>
+    <DocumentMentionProvider workspaceSlug={workspace?.slug}>
+      <ChatSidebarProvider>
       <div
         style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
         className="relative flex md:ml-[2px] md:mr-[16px] md:my-[16px] w-full h-full z-[2]"
@@ -294,10 +296,22 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
           <WorkspaceModelPicker workspaceSlug={workspace?.slug} />
           <DnDFileUploaderWrapper>
             <div className="flex flex-col h-full w-full items-center justify-center">
-              <div className="flex flex-col items-center w-full max-w-[750px]">
-                <h1 className="text-white text-xl md:text-2xl mb-11 text-center">
-                  {t("main-page.greeting")}
-                </h1>
+              <div className={`flex flex-col items-center ${CHAT_CONTENT_CLASS}`}>
+                <EmptyWorkspace
+                  workspaceName={workspace?.name}
+                  onUpload={async () => {
+                    let ws = workspace;
+                    if (!ws) {
+                      ws = await createDefaultWorkspace(
+                        t("new-workspace.placeholder")
+                      );
+                      if (!ws) return;
+                      setWorkspace(ws);
+                    }
+                    setManageWorkspaceSlug(ws.slug);
+                    showManageWorkspace();
+                  }}
+                />
                 <PromptInput
                   workspace={workspace}
                   submit={handleSubmit}
@@ -308,14 +322,6 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
                   workspaceSlug={workspace?.slug}
                   threadSlug={threadSlug}
                 />
-                <QuickActions
-                  hasAvailableWorkspace={!!workspace}
-                  onCreateAgent={() => navigate(paths.settings.agentSkills())}
-                  onEditWorkspace={handleEditWorkspace}
-                  onUploadDocument={() =>
-                    document.getElementById("dnd-chat-file-uploader")?.click()
-                  }
-                />
               </div>
               <SuggestedMessages
                 suggestedMessages={workspace?.suggestedMessages}
@@ -324,10 +330,17 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
             </div>
           </DnDFileUploaderWrapper>
           <ChatTooltips />
+          {showingManageWorkspace && manageWorkspaceSlug && (
+            <ManageWorkspace
+              hideModal={hideManageWorkspace}
+              providedSlug={manageWorkspaceSlug}
+            />
+          )}
         </div>
         <MemoriesSidebar workspace={workspace} />
       </div>
     </ChatSidebarProvider>
+    </DocumentMentionProvider>
   );
 }
 
