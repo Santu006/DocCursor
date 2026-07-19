@@ -3,7 +3,6 @@ const {
   WorkspaceAgentInvocation,
 } = require("../../models/workspaceAgentInvocation");
 const { writeResponseChunk } = require("../helpers/chat/responses");
-const { Workspace } = require("../../models/workspace");
 
 /**
  * In-memory cache for attachments associated with agent invocations.
@@ -44,15 +43,12 @@ async function grepAgents({
   thread = null,
   attachments = [],
 }) {
-  let nativeToolingEnabled = false;
-
-  // If the workspace is in automatic mode, check if the workspace supports native tooling
-  // to determine if the agent flow should be used or not.
-  if (workspace?.chatMode === "automatic")
-    nativeToolingEnabled = await Workspace.supportsNativeToolCalling(workspace);
-
+  // DocCursor is a document Q&A tool ("Cursor for documents, minus edit"), not a
+  // coding/agent product. We intentionally DO NOT auto-swap into the agent flow
+  // based on the workspace being in "automatic" mode + native tool-calling.
+  // Only an explicit "@agent" handle in the message may invoke an agent.
   const agentHandles = WorkspaceAgentInvocation.parseAgents(message);
-  if (agentHandles.length > 0 || nativeToolingEnabled) {
+  if (agentHandles.length > 0) {
     const { invocation: newInvocation } = await WorkspaceAgentInvocation.new({
       prompt: message,
       workspace: workspace,

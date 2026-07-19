@@ -4,7 +4,7 @@ export const RECENT_PROJECT_FILES_KEY = "doccursor_recent_project_files";
 const MAX_RECENT_FILES = 5;
 
 /**
- * @returns {Array<{ title: string, docpath: string, workspaceSlug: string, workspaceName: string, extension: string, openedAt: number }>}
+ * @returns {Array<{ title: string, docpath: string, docId?: string, filename?: string, label?: string, mentionType?: string, workspaceSlug: string, workspaceName: string, extension: string, openedAt: number }>}
  */
 export function getRecentProjectFiles() {
   const parsed = safeJsonParse(localStorage.getItem(RECENT_PROJECT_FILES_KEY));
@@ -12,12 +12,21 @@ export function getRecentProjectFiles() {
 }
 
 /**
- * @param {{ title: string, docpath: string, workspaceSlug: string, workspaceName: string, extension?: string }} entry
+ * @param {{ title: string, docpath: string, docId?: string, filename?: string, label?: string, mentionType?: string, workspaceSlug: string, workspaceName: string, extension?: string }} entry
  * @returns {ReturnType<typeof getRecentProjectFiles>}
  */
 export function addRecentProjectFile(entry) {
-  const { title, docpath, workspaceSlug, workspaceName, extension = "" } =
-    entry;
+  const {
+    title,
+    docpath,
+    docId,
+    filename,
+    label,
+    mentionType,
+    workspaceSlug,
+    workspaceName,
+    extension = "",
+  } = entry;
 
   const deduped = getRecentProjectFiles().filter(
     (file) => file.docpath !== docpath
@@ -27,6 +36,10 @@ export function addRecentProjectFile(entry) {
     {
       title,
       docpath,
+      docId,
+      filename,
+      label,
+      mentionType,
       workspaceSlug,
       workspaceName,
       extension,

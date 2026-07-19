@@ -63,6 +63,16 @@ class LanceDb extends VectorDatabase {
     return includeVectorIds.has(rest.id);
   }
 
+  includeVectorWhereClause(includeVectorIds) {
+    if (!(includeVectorIds instanceof Set) || includeVectorIds.size === 0) {
+      return null;
+    }
+    const quotedIds = [...includeVectorIds].map(
+      (id) => `'${String(id).replaceAll("'", "''")}'`
+    );
+    return `id IN (${quotedIds.join(", ")})`;
+  }
+
   async heartbeat() {
     await this.connect();
     return { heartbeat: Number(new Date()) };
@@ -200,11 +210,12 @@ class LanceDb extends VectorDatabase {
       10,
       Math.min(50, Math.ceil(totalEmbeddings * 0.1))
     );
-    const vectorSearchResults = await collection
+    const vectorQuery = collection
       .vectorSearch(queryVector)
-      .distanceType("cosine")
-      .limit(searchLimit)
-      .toArray();
+      .distanceType("cosine");
+    const includeWhere = this.includeVectorWhereClause(includeVectorIds);
+    if (includeWhere) vectorQuery.where(includeWhere);
+    const vectorSearchResults = await vectorQuery.limit(searchLimit).toArray();
 
     await reranker
       .rerank(query, vectorSearchResults, { topK: topN })
@@ -266,14 +277,16 @@ class LanceDb extends VectorDatabase {
       scores: [],
     };
 
-    const searchLimit =
-      includeVectorIds !== null ? Math.max(topN * 20, 50) : topN;
+    const searchLimit = includeVectorIds !== null
+      ? Math.max(topN, Math.min(includeVectorIds.size, 50))
+      : topN;
 
-    const response = await collection
+    const vectorQuery = collection
       .vectorSearch(queryVector)
-      .distanceType("cosine")
-      .limit(searchLimit)
-      .toArray();
+      .distanceType("cosine");
+    const includeWhere = this.includeVectorWhereClause(includeVectorIds);
+    if (includeWhere) vectorQuery.where(includeWhere);
+    const response = await vectorQuery.limit(searchLimit).toArray();
 
     response.forEach((item) => {
       if (result.sourceDocuments.length >= topN) return;

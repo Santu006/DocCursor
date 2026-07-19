@@ -83,6 +83,15 @@ export default function UploadFile({
 
   return (
     <div>
+      <div className="w-[560px] mb-3">
+        <h3 className="text-sm font-semibold text-white light:text-slate-900">
+          Add documents
+        </h3>
+        <p className="text-xs text-white/50 light:text-slate-500 mt-0.5">
+          Upload individual files, or import a complete client folder with its
+          structure.
+        </p>
+      </div>
       <div
         className={`w-[560px] border-dashed border-[2px] border-theme-modal-border light:border-[#686C6F] rounded-2xl bg-theme-bg-primary transition-colors duration-300 p-3 ${
           ready
@@ -106,9 +115,12 @@ export default function UploadFile({
           <div className="flex flex-col items-center justify-center">
             <CloudArrowUp className="w-8 h-8 text-white/80 light:invert" />
             <div className="text-white text-opacity-80 text-sm font-semibold py-1">
-              {t("connectors.upload.click-upload")}
+              Upload individual files
             </div>
             <div className="text-white text-opacity-60 text-xs font-medium py-1">
+              Click to choose files or drag them here
+            </div>
+            <div className="text-white text-opacity-40 text-[11px] font-medium">
               {t("connectors.upload.file-types")}
             </div>
           </div>
@@ -132,8 +144,12 @@ export default function UploadFile({
           </div>
         )}
       </div>
-      <div className="text-center text-white text-opacity-50 text-xs font-medium w-[560px] py-2">
-        {t("connectors.upload.or-submit-link")}
+      <div className="flex items-center gap-3 w-[560px] py-3">
+        <div className="h-px bg-white/10 light:bg-slate-200 flex-1" />
+        <span className="text-[11px] font-medium text-white/35 light:text-slate-400">
+          OR
+        </span>
+        <div className="h-px bg-white/10 light:bg-slate-200 flex-1" />
       </div>
       <div className="mb-4">
         <FolderUploadPanel
@@ -143,6 +159,9 @@ export default function UploadFile({
           setLoadingMessage={setLoadingMessage}
           disabled={!ready}
         />
+      </div>
+      <div className="text-center text-white text-opacity-50 text-xs font-medium w-[560px] py-2">
+        Or import a website
       </div>
       <form onSubmit={handleSendLink} className="flex gap-x-2">
         <input

@@ -2,7 +2,7 @@ const WATCH_DIRECTORY = require("path").resolve(__dirname, "../hotdir");
 
 const ACCEPTED_MIMES = {
   "text/plain": [".txt", ".md", ".org", ".adoc", ".rst"],
-  "text/html": [".html"],
+  "text/html": [".html", ".htm"],
   "text/csv": [".csv"],
   "application/json": [".json"],
   // TODO: Create asDoc.js that works for standard MS Word files.
@@ -52,6 +52,7 @@ const SUPPORTED_FILETYPE_CONVERTERS = {
   ".json": "./convert/asTxt.js",
 
   ".html": "./convert/asTxt.js",
+  ".htm": "./convert/asTxt.js",
   ".pdf": "./convert/asPDF/index.js",
 
   ".docx": "./convert/asDocx.js",

@@ -1,5 +1,5 @@
 /** Shared layout tokens for DocCursor Phase 9 minimal UX */
-export const CHAT_CONTENT_CLASS = "w-full max-w-[80%] mx-auto";
+export const CHAT_CONTENT_CLASS = "w-full max-w-[820px] mx-auto px-4";
 
 export function shortenError(message) {
   if (!message) return "Something went wrong.";

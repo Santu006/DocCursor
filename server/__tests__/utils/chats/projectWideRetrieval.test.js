@@ -489,6 +489,7 @@ describe("projectWideRetrieval", () => {
         expect.objectContaining({
           includeDocumentIds: ["doc-a"],
           topN: 4,
+          similarityThreshold: 0,
         })
       );
       expect(result.projectWide).toBe(false);

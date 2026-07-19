@@ -497,7 +497,11 @@ async function performWorkspaceSimilaritySearch({
     namespace: workspace.slug,
     input,
     LLMConnector,
-    similarityThreshold: projectWide ? 0 : effectiveThreshold,
+    // An explicitly selected document is already the relevance filter.
+    // Summary-style prompts ("summarize this file") are semantically unlike
+    // the document body, so applying the normal similarity threshold can
+    // incorrectly return zero chunks even though the document is indexed.
+    similarityThreshold: projectWide || hasDocScope ? 0 : effectiveThreshold,
     topN,
     filterIdentifiers,
     includeDocumentIds: hasDocScope ? selectedDocumentIds : [],

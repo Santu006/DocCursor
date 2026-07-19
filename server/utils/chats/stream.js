@@ -33,6 +33,19 @@ const {
   applyContextAvailableInstructions,
   isInvalidNoAccessResponse,
 } = require("./contextRouting");
+const {
+  loadSelectedDocumentContext,
+  applyDocumentQaSystemPrompt,
+} = require("./selectedDocumentContext");
+const {
+  performWorkspaceExactSearch,
+  applyExactSearchSystemPrompt,
+} = require("./workspaceExactSearch");
+const {
+  performWorkspaceAnalytics,
+  applyAnalyticsSystemPrompt,
+  ANALYTICS_SYSTEM_PROMPT,
+} = require("./workspaceAnalytics");
 const { createPipelineLogger } = require("./pipelineLogger");
 const {
   performExecutiveReportQuery,
@@ -235,7 +248,7 @@ async function streamChatWithWorkspace(
     const scopedDocumentIds = routing.selectedDocumentIds;
     const cleanMessage = routing.cleanMessage;
     const retrievalPlan = routing.retrievalPlan;
-    const routedUserPrompt = buildRoutedUserPrompt({
+    let routedUserPrompt = buildRoutedUserPrompt({
       cleanMessage,
       selectedDocuments: routing.selectedDocuments,
       workspaceName: routing.workspaceName,
@@ -282,8 +295,15 @@ async function streamChatWithWorkspace(
 
     const messageLimit = workspace?.openAiHistory || 20;
     const hasVectorizedSpace = await VectorDb.hasNamespace(workspace.slug);
+    const hasSelectedDocuments = (scopedDocumentIds || []).length > 0;
 
-    if ((!hasVectorizedSpace || embeddingsCount === 0) && chatMode === "query") {
+    // Query mode with an empty vector index can still answer from selected
+    // documents via direct file read (Cursor-style Q/A).
+    if (
+      (!hasVectorizedSpace || embeddingsCount === 0) &&
+      chatMode === "query" &&
+      !hasSelectedDocuments
+    ) {
       const textResponse =
         workspace?.queryRefusalResponse ??
         "There is no relevant information in this workspace to answer your query.";
@@ -556,6 +576,75 @@ async function streamChatWithWorkspace(
       contextTexts.unshift(workspaceGraphResult.context);
     }
 
+    let exactSearchResult = {
+      handled: false,
+      values: [],
+      contextTexts: [],
+      sources: [],
+      matchCount: 0,
+      documentCount: 0,
+    };
+    if (!hasSelectedDocuments) {
+      try {
+        pipeline.stage("workspace_exact_search_start");
+        exactSearchResult = await performWorkspaceExactSearch({
+          workspaceId: workspace.id,
+          message: cleanMessage,
+        });
+        if (exactSearchResult.contextTexts.length > 0) {
+          contextTexts.unshift(...exactSearchResult.contextTexts);
+          sources.unshift(...exactSearchResult.sources);
+        }
+        pipeline.ok("workspace_exact_search_complete", {
+          handled: exactSearchResult.handled,
+          values: exactSearchResult.values,
+          matchCount: exactSearchResult.matchCount,
+          documentCount: exactSearchResult.documentCount,
+        });
+      } catch (error) {
+        // Exact search supplements RAG. Preserve semantic fallback on scan errors.
+        pipeline.fail("workspace_exact_search", error);
+      }
+    }
+
+    let analyticsResult = {
+      handled: false,
+      operations: [],
+      contextTexts: [],
+      sources: [],
+      productCount: 0,
+      reportCount: 0,
+    };
+    try {
+      pipeline.stage("workspace_analytics_start");
+      analyticsResult = await performWorkspaceAnalytics({
+        workspaceId: workspace.id,
+        message: cleanMessage,
+      });
+      if (analyticsResult.contextTexts.length > 0) {
+        contextTexts.unshift(...analyticsResult.contextTexts);
+        sources.unshift(...analyticsResult.sources);
+        // Put authoritative computed numbers in the user message so they
+        // cannot be outranked by selected-file / "Not found" instructions.
+        routedUserPrompt = [
+          analyticsResult.contextTexts[0],
+          "",
+          "Instruction: Answer using the Computed stock analytics above. Do not say Not found.",
+          "",
+          `User Question:\n${cleanMessage}`,
+        ].join("\n");
+      }
+      pipeline.ok("workspace_analytics_complete", {
+        handled: analyticsResult.handled,
+        operations: analyticsResult.operations,
+        productCount: analyticsResult.productCount,
+        reportCount: analyticsResult.reportCount,
+      });
+    } catch (error) {
+      // Analytics augment the answer; degrade to RAG/direct read on failure.
+      pipeline.fail("workspace_analytics", error);
+    }
+
     let vectorSearchResults = {
       contextTexts: [],
       sources: [],
@@ -605,6 +694,47 @@ async function streamChatWithWorkspace(
       pinnedDocIdentifiers,
     }));
 
+    let directDocumentResult = {
+      contextTexts: [],
+      sources: [],
+      loadedCount: 0,
+      requestedCount: 0,
+      labels: [],
+      truncatedLabels: [],
+      failedLabels: [],
+    };
+    if (hasSelectedDocuments) {
+      try {
+        pipeline.stage("selected_document_direct_read_start", {
+          selectedDocumentIds: scopedDocumentIds,
+        });
+        directDocumentResult = await loadSelectedDocumentContext({
+          selectedDocumentIds: scopedDocumentIds,
+          selectedDocuments: routing.selectedDocuments,
+        });
+        // Direct file text is primary for selected-doc Q/A; RAG chunks support it.
+        contextTexts = [
+          ...directDocumentResult.contextTexts,
+          ...contextTexts,
+        ];
+        sources = [...directDocumentResult.sources, ...sources];
+        pipeline.ok("selected_document_direct_read_complete", {
+          loadedCount: directDocumentResult.loadedCount,
+          requestedCount: directDocumentResult.requestedCount,
+          labels: directDocumentResult.labels,
+          truncatedLabels: directDocumentResult.truncatedLabels,
+          failedLabels: directDocumentResult.failedLabels,
+        });
+      } catch (error) {
+        pipeline.fail("selected_document_direct_read", error);
+        return abortPipeline(
+          response,
+          uuid,
+          `Selected document read failed: ${error.message}`
+        );
+      }
+    }
+
     if (chatMode === "query" && contextTexts.length === 0) {
       const textResponse =
         workspace?.queryRefusalResponse ??
@@ -636,16 +766,27 @@ async function streamChatWithWorkspace(
     }
 
     const retrievedChunkCount = contextTexts.length;
-    const systemPrompt = applyContextAvailableInstructions(
-      applyProjectWideSystemPrompt(
-        prefetchedContext?.systemPrompt ??
-          (await chatPrompt(workspace, user, {
-            prompt: cleanMessage,
-            rawHistory,
-          })),
-        vectorSearchResults
+    // When analytics is present, skip DOCUMENT_QA / exact-search "Not found"
+    // instructions — they conflict with computed aggregates and cause false refusals.
+    const systemPrompt = applyAnalyticsSystemPrompt(
+      applyExactSearchSystemPrompt(
+        applyDocumentQaSystemPrompt(
+          applyContextAvailableInstructions(
+            applyProjectWideSystemPrompt(
+              prefetchedContext?.systemPrompt ??
+                (await chatPrompt(workspace, user, {
+                  prompt: cleanMessage,
+                  rawHistory,
+                })),
+              vectorSearchResults
+            ),
+            analyticsResult.handled ? 0 : retrievedChunkCount
+          ),
+          !analyticsResult.handled && directDocumentResult.loadedCount > 0
+        ),
+        !analyticsResult.handled && exactSearchResult.matchCount > 0
       ),
-      retrievedChunkCount
+      analyticsResult.handled
     );
     const diffAwareSystemPrompt = documentDiffResult.handled
       ? `${systemPrompt}\n\n${DOCUMENT_DIFF_SYSTEM_PROMPT}`
@@ -657,6 +798,9 @@ async function streamChatWithWorkspace(
 
     pipeline.ok("prompt_built", {
       retrievedChunkCount,
+      directDocumentCount: directDocumentResult.loadedCount,
+      exactMatchCount: exactSearchResult.matchCount,
+      analyticsHandled: analyticsResult.handled,
       routedUserPromptPreview: routedUserPrompt.slice(0, 300),
     });
 
@@ -665,6 +809,8 @@ async function streamChatWithWorkspace(
       selectedDocumentIds: scopedDocumentIds,
       workspaceName: workspace?.name,
       retrievedChunkCount,
+      directDocumentCount: directDocumentResult.loadedCount,
+      exactMatchCount: exactSearchResult.matchCount,
       promptLength: routedUserPrompt.length + diffAwareSystemPrompt.length,
       promptPreview: routedUserPrompt,
     });
@@ -715,20 +861,41 @@ async function streamChatWithWorkspace(
 
     pipeline.ok("openai_request_sent");
 
+    const isFalseAnalyticsNotFound =
+      analyticsResult.handled &&
+      /not\s+found\s+in\s+the\s+provided\s+document/i.test(completeText || "");
+
     if (
-      isInvalidNoAccessResponse(completeText, retrievedChunkCount) &&
-      retrievedChunkCount > 0
+      (isInvalidNoAccessResponse(completeText, retrievedChunkCount) &&
+        retrievedChunkCount > 0) ||
+      isFalseAnalyticsNotFound
     ) {
-      pipeline.stage("response_guard_retry");
+      pipeline.stage("response_guard_retry", {
+        reason: isFalseAnalyticsNotFound
+          ? "analytics_not_found_refusal"
+          : "no_access_refusal",
+      });
+      const retryUserPrompt = isFalseAnalyticsNotFound
+        ? [
+            analyticsResult.contextTexts[0],
+            "",
+            "You previously refused incorrectly. The Computed stock analytics above ARE the answer. Produce the averages/totals from that table now. Never say Not found.",
+            "",
+            `User Question:\n${cleanMessage}`,
+          ].join("\n")
+        : routedUserPrompt;
+      const retrySystemPrompt = isFalseAnalyticsNotFound
+        ? `${diffAwareSystemPrompt}\n\n${ANALYTICS_SYSTEM_PROMPT}\nYou must answer from Computed stock analytics. Never say Not found.`
+        : `${diffAwareSystemPrompt}\n\nYou previously incorrectly claimed you could not access the documents. The Context section above contains the retrieved excerpts. Answer the user question using only that context.`;
       const retryMessages = await LLMConnector.compressMessages(
         {
-          systemPrompt: `${diffAwareSystemPrompt}\n\nYou previously incorrectly claimed you could not access the documents. The Context section above contains the retrieved excerpts. Answer the user question using only that context.`,
-          userPrompt: routedUserPrompt,
+          systemPrompt: retrySystemPrompt,
+          userPrompt: retryUserPrompt,
           contextTexts,
-          chatHistory,
+          chatHistory: isFalseAnalyticsNotFound ? [] : chatHistory,
           attachments,
         },
-        rawHistory
+        isFalseAnalyticsNotFound ? [] : rawHistory
       );
 
       if (LLMConnector.streamingEnabled() !== true) {
@@ -737,22 +904,28 @@ async function streamChatWithWorkspace(
             temperature: workspace?.openAiTemp ?? LLMConnector.defaultTemp,
             user,
           });
-        if (
-          textResponse &&
-          !isInvalidNoAccessResponse(textResponse, retrievedChunkCount)
-        ) {
-          completeText = textResponse;
-          metrics = retryMetrics;
-          writeResponseChunk(response, {
-            uuid,
-            sources,
-            type: "textResponseChunk",
-            textResponse: completeText,
-            replace: true,
-            close: true,
-            error: false,
-            metrics,
-          });
+        if (textResponse) {
+          const stillAnalyticsRefusal =
+            isFalseAnalyticsNotFound &&
+            /not\s+found\s+in\s+the\s+provided\s+document/i.test(textResponse);
+          const stillNoAccess = isInvalidNoAccessResponse(
+            textResponse,
+            retrievedChunkCount
+          );
+          if (!stillAnalyticsRefusal && !stillNoAccess) {
+            completeText = textResponse;
+            metrics = retryMetrics;
+            writeResponseChunk(response, {
+              uuid,
+              sources,
+              type: "textResponseChunk",
+              textResponse: completeText,
+              replace: true,
+              close: true,
+              error: false,
+              metrics,
+            });
+          }
         }
       } else {
         const retryStream = await LLMConnector.streamGetChatCompletion(

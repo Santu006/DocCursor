@@ -20,6 +20,7 @@ export default function FolderUploadPanel({
   disabled = false,
 }) {
   const inputRef = useRef(null);
+  const lastRefreshCountRef = useRef(-1);
   const [phase, setPhase] = useState("idle");
   const [uploadProgress, setUploadProgress] = useState({ uploaded: 0, total: 0 });
   const [jobStatus, setJobStatus] = useState(null);
@@ -33,6 +34,7 @@ export default function FolderUploadPanel({
     setUploadProgress({ uploaded: 0, total: 0 });
     setJobStatus(null);
     setFailedFiles([]);
+    lastRefreshCountRef.current = -1;
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
@@ -40,15 +42,20 @@ export default function FolderUploadPanel({
     const fileList = event.target.files;
     if (!fileList?.length) return;
 
-    const { supported, skipped } = scanFolderFiles(fileList);
+    const { supported } = scanFolderFiles(fileList);
     if (!supported.length) {
       showToast("No supported documents in this folder.", "error");
       return;
     }
 
     setPhase("uploading");
-    setLoading?.(true);
+    // Keep the documents browser usable while large files embed in the background.
+    setLoading?.(false);
     setLoadingMessage?.("");
+    showToast(
+      `Importing ${supported.length} documents. Large annual reports can take several minutes.`,
+      "info"
+    );
 
     try {
       const { jobId } = await uploadFolderInBatches({
@@ -62,9 +69,20 @@ export default function FolderUploadPanel({
       });
 
       setPhase("indexing");
+      await fetchKeys?.(true, { autoSelectNew: false });
 
       const finalJob = await FolderUpload.pollUploadStatus(workspace.slug, jobId, {
-        onUpdate: (job) => setJobStatus(job),
+        onUpdate: (job) => {
+          setJobStatus(job);
+          const doneCount =
+            (job?.embeddedCount ?? 0) +
+            (job?.processedCount ?? 0) +
+            (job?.parsedCount ?? 0);
+          if (doneCount !== lastRefreshCountRef.current) {
+            lastRefreshCountRef.current = doneCount;
+            fetchKeys?.(true, { autoSelectNew: false });
+          }
+        },
       });
 
       if (finalJob?.embeddedCount) {
@@ -94,8 +112,30 @@ export default function FolderUploadPanel({
   };
 
   const isBusy = phase === "uploading" || phase === "indexing";
-  const indexCurrent = jobStatus?.progress?.indexed ?? 0;
-  const indexTotal = jobStatus?.progress?.total ?? 0;
+  const indexCurrent = Math.max(
+    jobStatus?.progress?.indexed ?? 0,
+    jobStatus?.embeddedCount ?? 0,
+    jobStatus?.processedCount ?? 0
+  );
+  const indexTotal = Math.max(
+    jobStatus?.progress?.total ?? 0,
+    jobStatus?.totalCount ?? 0,
+    uploadProgress.total
+  );
+  const phaseLabel =
+    jobStatus?.phase === "intelligence"
+      ? "Building intelligence"
+      : jobStatus?.phase === "embedding"
+        ? "Embedding"
+        : jobStatus?.phase === "parsing"
+          ? "Parsing"
+          : "Indexing";
+  const progressDetail = [
+    jobStatus?.currentFile ? `Current: ${jobStatus.currentFile}` : null,
+    indexTotal > 0 ? `${indexCurrent} of ${indexTotal} files` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="w-full max-w-[520px]">
@@ -114,15 +154,24 @@ export default function FolderUploadPanel({
         type="button"
         disabled={disabled || isBusy}
         onClick={() => inputRef.current?.click()}
-        className="w-full border border-dashed border-white/15 light:border-slate-300 rounded-lg bg-transparent hover:bg-white/5 light:hover:bg-black/[0.02] transition-colors p-3 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full border-2 border-dashed border-primary-button/40 light:border-blue-300 rounded-xl bg-primary-button/5 light:bg-blue-50/60 hover:bg-primary-button/10 light:hover:bg-blue-50 transition-colors p-4 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <FolderOpen size={20} className="text-white/60 light:text-slate-500 shrink-0" />
-        <div className="text-left min-w-0">
-          <p className="text-sm font-medium text-white light:text-slate-900">
-            Upload folder
-          </p>
-          <p className="text-xs text-white/45 light:text-slate-500 truncate">
-            PDF, DOCX, TXT, MD, CSV, XLSX, PPTX
+        <FolderOpen
+          size={24}
+          className="text-primary-button light:text-blue-600 shrink-0"
+          weight="duotone"
+        />
+        <div className="text-left min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-white light:text-slate-900">
+              Upload folder / client project
+            </p>
+            <span className="rounded-full bg-primary-button/15 light:bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-button light:text-blue-700">
+              Recommended
+            </span>
+          </div>
+          <p className="text-xs text-white/50 light:text-slate-500 mt-0.5">
+            Recursively imports documents and preserves nested folder paths
           </p>
         </div>
       </button>
@@ -137,18 +186,19 @@ export default function FolderUploadPanel({
         </div>
       )}
 
-      {phase === "indexing" && jobStatus && (
+      {phase === "indexing" && (
         <div className="mt-3 px-1">
           <CompactProgress
-            label={
-              jobStatus.phase === "intelligence"
-                ? "Building intelligence"
-                : "Indexing"
-            }
+            label={phaseLabel}
             current={indexCurrent}
             total={indexTotal}
-            estimatedSecondsRemaining={jobStatus.progress?.estimatedSecondsRemaining}
-            detail={jobStatus.currentFile}
+            estimatedSecondsRemaining={
+              jobStatus?.progress?.estimatedSecondsRemaining
+            }
+            detail={
+              progressDetail ||
+              "Large PDFs/HTML filings embed chunk-by-chunk — this can take several minutes."
+            }
           />
         </div>
       )}

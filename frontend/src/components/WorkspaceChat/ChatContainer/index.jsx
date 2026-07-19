@@ -59,7 +59,7 @@ function ChatContainerView({
   knownHistory = [],
 }) {
   const navigate = useNavigate();
-  const { selectedDocumentIds, clearDocuments, applyDocumentContextAction } =
+  const { selectedDocumentIds, applyDocumentContextAction } =
     useDocumentMention();
   const [loadingResponse, setLoadingResponse] = useState(false);
   const [chatHistory, setChatHistory] = useState(knownHistory);
@@ -165,7 +165,8 @@ function ChatContainerView({
     ]);
     setMessageEmit("");
     setLoadingResponse(true);
-    clearDocuments();
+    // DocCursor: keep selected documents "sticky" across turns (like Cursor's
+    // active file). The user removes them explicitly via the chip's X / "Clear all".
   };
 
   function endSTTSession() {
@@ -283,7 +284,8 @@ function ChatContainerView({
     setChatHistory(prevChatHistory);
     setMessageEmit("");
     setLoadingResponse(true);
-    clearDocuments();
+    // DocCursor: keep selected documents "sticky" across turns (like Cursor's
+    // active file). The user removes them explicitly via the chip's X / "Clear all".
   };
 
   sendCommandRef.current = sendCommand;

@@ -30,6 +30,12 @@ import {
   addRecentProjectFile,
   getRecentProjectFiles,
 } from "@/utils/recentProjectFiles";
+import {
+  DocumentContextAction,
+  buildDocumentContextPayload,
+  dispatchDocumentContextAction,
+  stashPendingDocumentContext,
+} from "@/utils/documentContext";
 
 export default function ActiveWorkspaces({ showNewWsModal }) {
   const { t } = useTranslation();
@@ -115,17 +121,40 @@ export default function ActiveWorkspaces({ showNewWsModal }) {
   }
 
   function handleFileOpen(file, workspace) {
+    const document = file.docId
+      ? {
+          docId: file.docId,
+          filename: file.filename || file.name,
+          label: file.label || file.title || file.name,
+          mentionType: file.mentionType || "document",
+        }
+      : null;
     const updated = addRecentProjectFile({
       title: file.title,
       docpath: file.docpath,
+      docId: file.docId,
+      filename: file.filename || file.name,
+      label: file.label || file.title || file.name,
+      mentionType: file.mentionType || "document",
       workspaceSlug: workspace.slug,
       workspaceName: workspace.name,
       extension: file.extension,
     });
     setRecentFiles(updated);
 
+    const contextPayload = document
+      ? buildDocumentContextPayload({
+          action: DocumentContextAction.ASK,
+          workspaceSlug: workspace.slug,
+          document,
+        })
+      : null;
+
     if (slug !== workspace.slug) {
+      if (contextPayload) stashPendingDocumentContext(contextPayload);
       navigate(paths.workspace.chat(workspace.slug));
+    } else if (contextPayload) {
+      dispatchDocumentContextAction(contextPayload);
     }
   }
 

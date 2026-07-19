@@ -153,37 +153,41 @@ export default function Home() {
 
   if (workspace && threadSlug) {
     return (
-      <DnDFileUploaderProvider workspace={workspace} threadSlug={threadSlug}>
-        <HomeContent
-          workspace={workspace}
-          setWorkspace={setWorkspace}
-          threadSlug={threadSlug}
-          setThreadSlug={setThreadSlug}
-        />
-      </DnDFileUploaderProvider>
+      <DocumentMentionProvider workspaceSlug={workspace.slug}>
+        <DnDFileUploaderProvider workspace={workspace} threadSlug={threadSlug}>
+          <HomeContent
+            workspace={workspace}
+            setWorkspace={setWorkspace}
+            threadSlug={threadSlug}
+            setThreadSlug={setThreadSlug}
+          />
+        </DnDFileUploaderProvider>
+      </DocumentMentionProvider>
     );
   }
 
   return (
-    <DndUploaderContext.Provider
-      value={{
-        files: [],
-        ready: true,
-        dragging,
-        setDragging,
-        onDrop: workspace
-          ? handleDropWithWorkspace
-          : handleDropWithoutWorkspace,
-        parseAttachments: () => [],
-      }}
-    >
-      <HomeContent
-        workspace={workspace}
-        setWorkspace={setWorkspace}
-        threadSlug={null}
-        setThreadSlug={setThreadSlug}
-      />
-    </DndUploaderContext.Provider>
+    <DocumentMentionProvider workspaceSlug={workspace?.slug}>
+      <DndUploaderContext.Provider
+        value={{
+          files: [],
+          ready: true,
+          dragging,
+          setDragging,
+          onDrop: workspace
+            ? handleDropWithWorkspace
+            : handleDropWithoutWorkspace,
+          parseAttachments: () => [],
+        }}
+      >
+        <HomeContent
+          workspace={workspace}
+          setWorkspace={setWorkspace}
+          threadSlug={null}
+          setThreadSlug={setThreadSlug}
+        />
+      </DndUploaderContext.Provider>
+    </DocumentMentionProvider>
   );
 }
 
@@ -284,8 +288,7 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
   }
 
   return (
-    <DocumentMentionProvider workspaceSlug={workspace?.slug}>
-      <ChatSidebarProvider>
+    <ChatSidebarProvider>
       <div
         style={{ height: isMobile ? "100%" : "calc(100% - 32px)" }}
         className="relative flex md:ml-[2px] md:mr-[16px] md:my-[16px] w-full h-full z-[2]"
@@ -340,7 +343,6 @@ function HomeContent({ workspace, setWorkspace, threadSlug, setThreadSlug }) {
         <MemoriesSidebar workspace={workspace} />
       </div>
     </ChatSidebarProvider>
-    </DocumentMentionProvider>
   );
 }
 

@@ -4,9 +4,18 @@ const SUPPORTED_EXTENSIONS = new Set([
   ".docx",
   ".txt",
   ".md",
+  ".html",
+  ".htm",
+  ".json",
+  ".org",
+  ".adoc",
+  ".rst",
   ".csv",
   ".xlsx",
   ".pptx",
+  ".odt",
+  ".odp",
+  ".epub",
 ]);
 
 const EXTENSION_LABELS = {
@@ -14,9 +23,18 @@ const EXTENSION_LABELS = {
   ".docx": "DOCX",
   ".txt": "TXT",
   ".md": "MD",
+  ".html": "HTML",
+  ".htm": "HTML",
+  ".json": "JSON",
+  ".org": "ORG",
+  ".adoc": "AsciiDoc",
+  ".rst": "RST",
   ".csv": "CSV",
   ".xlsx": "XLSX",
   ".pptx": "PPTX",
+  ".odt": "ODT",
+  ".odp": "ODP",
+  ".epub": "EPUB",
 };
 
 const DEFAULT_UPLOAD_CONCURRENCY = Number(

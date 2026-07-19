@@ -1,0 +1,71 @@
+SAMPLE DOCUMENT — FICTIONAL — FOR DEMO ONLY
+
+EXCLUSIVE DISTRIBUTOR AGREEMENT
+
+This Exclusive Distributor Agreement (the "Agreement") is entered into as of March 1, 2024 (the "Effective Date"), by and between:
+
+ABC Manufacturing Corp., a Delaware corporation with its principal place of business at 100 Industrial Parkway, Chicago, IL 60601 ("Company"), and
+
+Midwest Regional Distributors LLC, an Illinois limited liability company with its principal place of business at 450 Commerce Drive, Springfield, IL 62701 ("Distributor").
+
+RECITALS
+
+A. Company manufactures and sells industrial HVAC control modules and related components (the "Products").
+B. Distributor desires to act as Company's exclusive distributor of Products within the Territory defined below.
+
+1. APPOINTMENT AND TERRITORY
+
+1.1 Appointment. Company hereby appoints Distributor as its exclusive distributor of Products in the Territory, and Distributor accepts such appointment.
+
+1.2 Territory. "Territory" means the States of Illinois, Indiana, and Wisconsin, including sales to commercial, industrial, and governmental end users within those states.
+
+1.3 Exclusivity. During the Term, Company shall not appoint another distributor for Products in the Territory, except for direct sales by Company to national account customers listed on Schedule A (none as of the Effective Date).
+
+2. TERM AND RENEWAL
+
+2.1 Initial Term. The initial term of this Agreement is five (5) years commencing on the Effective Date (the "Term").
+
+2.2 Renewal. If Distributor is not in material default, this Agreement shall automatically renew for successive one (1) year periods unless either party gives written notice of non-renewal at least ninety (90) days before the end of the then-current Term.
+
+3. FINANCIAL TERMS
+
+3.1 Letter of Credit. Within fifteen (15) days after the Effective Date, Distributor shall issue to Company an irrevocable standby letter of credit in the amount of Two Hundred Fifty Thousand Dollars ($250,000) (the "LC"), in form reasonably acceptable to Company. The LC shall remain in force for the Term and any renewal.
+
+3.2 Payment Terms. Distributor shall pay invoices within thirty (30) days of receipt of Products (Net 30).
+
+3.3 Minimum Purchases. Distributor shall purchase Products totaling at least:
+   (A) $1,200,000 in Contract Year 1;
+   (B) $1,500,000 in Contract Year 2;
+   (C) $1,800,000 in each subsequent Contract Year of the Term.
+
+Failure to meet minimums for two consecutive Contract Years may, at Company's option, convert exclusivity to non-exclusive upon thirty (30) days' written notice.
+
+4. DISTRIBUTOR OBLIGATIONS
+
+4.1 Promotion. Distributor shall, at its own expense, actively promote and solicit orders for Products in the Territory.
+
+4.2 Non-Compete Products. During the Term and for twelve (12) months thereafter, Distributor shall not distribute competing HVAC control modules in the Territory without Company's prior written consent.
+
+5. TERMINATION
+
+5.1 For Cause. Either party may terminate this Agreement upon thirty (30) days' prior written notice if the other party materially breaches and fails to cure within such period.
+
+5.2 Immediate Termination. Company may terminate immediately upon written notice if Distributor becomes insolvent, files for bankruptcy, or fails to renew the LC.
+
+5.3 Effect of Termination. Upon termination, Company may, at its option within thirty (30) days, repurchase unsold Products in original packaging at net invoice price less 10%.
+
+6. GOVERNING LAW
+
+This Agreement shall be governed by the laws of the State of Illinois, without regard to conflicts of law principles. Exclusive venue lies in the state or federal courts located in Cook County, Illinois.
+
+7. ENTIRE AGREEMENT
+
+This Agreement, including Schedules A and B, constitutes the entire agreement between the parties and supersedes all prior negotiations relating to its subject matter.
+
+IN WITNESS WHEREOF, the parties have executed this Agreement as of the Effective Date.
+
+ABC Manufacturing Corp.                 Midwest Regional Distributors LLC
+By: /s/ Priya Shah                      By: /s/ James O'Neal
+Name: Priya Shah                        Name: James O'Neal
+Title: VP, Sales                        Title: Managing Member
+Date: March 1, 2024                     Date: March 1, 2024

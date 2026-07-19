@@ -1,0 +1,84 @@
+SAMPLE DOCUMENT — FICTIONAL — FOR DEMO ONLY
+CLIENT CORRESPONDENCE LOG / EMAIL THREAD EXPORT
+Matter: ABC Manufacturing Corp. — General Commercial & Collection
+Firm: Shah & Associates LLP
+Privilege notice: Attorney-client communication — DEMO CONTENT ONLY
+
+================================================================================
+Email 1
+From: Priya Shah <pshah@abc-mfg-demo.example>
+To: Anita Rao <arao@shahlaw-demo.example>
+Date: May 3, 2023, 9:14 AM CT
+Subject: RiverNorth past due — need demand letter
+
+Anita,
+
+RiverNorth is now 60+ days past due on $216,500 across invoices ABC-7721 to ABC-7798. Please send a formal demand letter referencing the June 8, 2022 Purchase Agreement and start preparing for suit if they do not pay within 15 days.
+
+Thanks,
+Priya
+================================================================================
+Email 2
+From: Anita Rao <arao@shahlaw-demo.example>
+To: Priya Shah <pshah@abc-mfg-demo.example>
+Date: May 3, 2023, 2:41 PM CT
+Subject: Re: RiverNorth past due — need demand letter
+
+Priya,
+
+Demand letter went out today (May 3) by email and overnight mail. We gave them until May 18, 2023 to cure. If unpaid, we recommend filing in Cook County Law Division. Estimated filing + initial appearance costs: $4,500–$6,000; contingency not available on commercial collections for this matter (hourly engagement as in the January 2023 engagement letter).
+
+Please confirm we should calendar a filing decision for May 19.
+
+Anita Rao
+Shah & Associates LLP
+================================================================================
+Email 3
+From: Priya Shah <pshah@abc-mfg-demo.example>
+To: Anita Rao <arao@shahlaw-demo.example>
+Cc: Marcus Lee <mlee@abc-mfg-demo.example>
+Date: February 28, 2024, 4:05 PM CT
+Subject: Midwest distributor — LC and exclusivity questions
+
+Anita,
+
+Draft distributor agreement with Midwest Regional Distributors looks fine commercially. Two points for your review before Board next week:
+
+1) Standby LC amount — commercial team wants $250,000. Is that enough security vs Year-1 minimum purchase of $1,200,000?
+2) Non-compete is 12 months post-term in IL/IN/WI — any enforceability flags?
+
+Also looping Marcus on supply-side: Pacific Component Works wants 70/30 LC split; operations is OK with that.
+
+Priya
+================================================================================
+Email 4
+From: Anita Rao <arao@shahlaw-demo.example>
+To: Priya Shah <pshah@abc-mfg-demo.example>; Marcus Lee <mlee@abc-mfg-demo.example>
+Date: March 1, 2024, 11:22 AM CT
+Subject: Re: Midwest distributor — LC and exclusivity questions
+
+Team,
+
+1) $250k LC is common as payment/security for unpaid invoices, not a substitute for the full annual minimum. Keep Net 30 + LC draw rights + minimum-purchase conversion-to-nonexclusive remedy (as in draft Section 3.3). I would not raise LC to $1.2M unless credit risk is acute.
+
+2) Post-term non-compete limited to Territory and competing HVAC modules for 12 months is more defensible than a nationwide ban, but Illinois still scrutinizes. Recommend we keep duration and geography tight; happy to discuss blue-pencil risk.
+
+Pacific 70/30 LC structure is acceptable if acceptance certificate definition is clear (no open-ended punch lists).
+
+I will attend Board on March 12 for the RiverNorth settlement authority item.
+
+Anita
+================================================================================
+Email 5
+From: David Chen <dchen@abc-mfg-demo.example>
+To: Anita Rao <arao@shahlaw-demo.example>
+Date: March 13, 2024, 8:50 AM CT
+Subject: Board authority — RiverNorth settlement
+
+Anita,
+
+Confirming Board authorized settlement of 2023-L-008742 up to $190,000. Please continue negotiations and send any term sheet to me before signature.
+
+David Chen
+Chair, ABC Manufacturing Corp.
+================================================================================

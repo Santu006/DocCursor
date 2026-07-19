@@ -45,7 +45,7 @@ const WORKSPACE_SUMMARY_PATTERNS = [
 
 const CONTEXT_AVAILABLE_INSTRUCTIONS = `Important: Retrieved document context has been provided above in the Context section. You have direct access to the selected workspace documents through this context.
 Do not claim you lack access to files, cannot read documents, cannot access external files, or need the user to upload materials.
-Answer using the provided context. If the context does not contain the answer, state what is missing from the retrieved excerpts.`;
+Answer using the provided context only. For exact numbers, names, dates, and table values: if they are not present in the context, say "Not found in the provided document(s)." Do not invent values.`;
 
 const REFUSAL_PATTERNS = [
   /\bi\s+don['']?t\s+have\s+access\b/i,

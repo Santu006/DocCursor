@@ -51,22 +51,6 @@ export default function Footer() {
         <div className="flex space-x-4">
           <div className="flex w-fit">
             <Link
-              to={paths.github()}
-              target="_blank"
-              rel="noreferrer"
-              className="transition-all duration-300 p-2 rounded-full bg-theme-sidebar-footer-icon hover:bg-theme-sidebar-footer-icon-hover"
-              aria-label="Find us on GitHub"
-              data-tooltip-id="footer-item"
-              data-tooltip-content="View Source Code"
-            >
-              <GithubLogo
-                weight="fill"
-                className="h-5 w-5 text-white light:text-slate-800"
-              />
-            </Link>
-          </div>
-          <div className="flex w-fit">
-            <Link
               to={paths.docs()}
               target="_blank"
               rel="noreferrer"
@@ -76,22 +60,6 @@ export default function Footer() {
               data-tooltip-content="Open DocCursor help docs"
             >
               <BookOpen
-                weight="fill"
-                className="h-5 w-5 text-white light:text-slate-800"
-              />
-            </Link>
-          </div>
-          <div className="flex w-fit">
-            <Link
-              to={paths.discord()}
-              target="_blank"
-              rel="noreferrer"
-              className="transition-all duration-300 p-2 rounded-full bg-theme-sidebar-footer-icon hover:bg-theme-sidebar-footer-icon-hover"
-              aria-label="Join our Discord server"
-              data-tooltip-id="footer-item"
-              data-tooltip-content="Join the DocCursor Discord"
-            >
-              <DiscordLogo
                 weight="fill"
                 className="h-5 w-5 text-white light:text-slate-800"
               />

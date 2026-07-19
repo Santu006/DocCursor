@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import debounce from "lodash.debounce";
-import { ArrowUp, At } from "@phosphor-icons/react";
+import { ArrowUp } from "@phosphor-icons/react";
 import StopGenerationButton from "./StopGenerationButton";
 import SpeechToText from "./SpeechToText";
 import { Tooltip } from "react-tooltip";
@@ -29,8 +29,6 @@ import {
   OPEN_DOCUMENT_MENTION_PICKER_EVENT,
   SET_PROMPT_MESSAGE_EVENT,
 } from "@/utils/documentContext";
-import { useSearchParams } from "react-router-dom";
-import { useIsAgentSessionActive } from "@/utils/chat/agent";
 
 export const PROMPT_INPUT_ID = "primary-prompt-input";
 export const PROMPT_INPUT_EVENT = "set_prompt_input";
@@ -57,9 +55,7 @@ export default function PromptInput({
   threadSlug = null,
 }) {
   const { t } = useTranslation();
-  const { showAgentCommand = true } = workspace ?? {};
   const { isDisabled } = useIsDisabled();
-  const agentSessionActive = useIsAgentSessionActive();
   const [promptInput, setPromptInput] = useState("");
   const [showTools, setShowTools] = useState(false);
   const autoOpenedToolsRef = useRef(false);
@@ -72,7 +68,6 @@ export default function PromptInput({
   const undoStack = useRef([]);
   const redoStack = useRef([]);
   const { textSizeClass } = useTextSize();
-  const [searchParams] = useSearchParams();
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const { addDocument } = useDocumentMention();
@@ -82,18 +77,6 @@ export default function PromptInput({
     promptInput,
     setPromptInput,
   });
-
-  /*
-   * @checklist-item
-   * If the URL has the agent param, open the agent menu for the user
-   * automatically when the component mounts.
-   */
-  useEffect(() => {
-    if (searchParams.get("action") === "set-agent-chat") {
-      sendCommand({ text: "@agent " });
-      textareaRef.current?.focus();
-    }
-  }, [textareaRef.current]);
 
   /**
    * To prevent too many re-renders we remotely listen for updates from the parent
@@ -439,13 +422,13 @@ export default function PromptInput({
         className={
           centered
             ? "flex flex-col gap-y-1 rounded-t-lg w-full items-center"
-            : "flex flex-col gap-y-1 rounded-t-lg md:w-full w-full mx-auto max-w-[80%] items-center"
+            : "flex flex-col gap-y-1 rounded-t-lg md:w-full w-full mx-auto max-w-[820px] items-center"
         }
       >
         <div
           className={`flex items-center rounded-lg md:w-full ${centered ? "mb-0" : "mb-4"}`}
         >
-          <div className="relative w-[95vw] md:w-full max-w-[80%]">
+          <div className="relative w-[95vw] md:w-full max-w-[820px] px-4">
             <ToolsMenu
               workspace={workspace}
               showing={showTools}
@@ -497,12 +480,6 @@ export default function PromptInput({
                       workspaceSlug={workspaceSlug}
                       workspaceThreadSlug={threadSlug}
                     />
-                    <AgentSessionButton
-                      sendCommand={sendCommand}
-                      promptInput={promptInput}
-                      textareaRef={textareaRef}
-                      visible={!agentSessionActive & showAgentCommand}
-                    />
                   </div>
                   <ToolsButton
                     showTools={showTools}
@@ -530,49 +507,6 @@ export default function PromptInput({
         </div>
       </form>
     </div>
-  );
-}
-
-function AgentSessionButton({
-  sendCommand,
-  promptInput,
-  textareaRef,
-  visible = true,
-}) {
-  const { t } = useTranslation();
-  if (!visible) return null;
-
-  function handleClick() {
-    try {
-      if (promptInput?.trim()?.startsWith("@agent")) return;
-      sendCommand({ text: "@agent", writeMode: "prepend" });
-    } finally {
-      textareaRef?.current?.focus();
-    }
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={handleClick}
-        data-tooltip-id="agent-session"
-        data-tooltip-content={t("chat_window.start_agent_session")}
-        aria-label={t("chat_window.start_agent_session")}
-        className="group border-none relative flex justify-center items-center cursor-pointer w-6 h-6 rounded-full hover:bg-zinc-700 light:hover:bg-slate-200"
-      >
-        <At
-          size={18}
-          className="pointer-events-none text-zinc-300 light:text-slate-600 group-hover:text-white light:group-hover:text-slate-600 shrink-0"
-        />
-      </button>
-      <Tooltip
-        id="agent-session"
-        place="bottom"
-        delayShow={300}
-        className="tooltip !text-xs z-99"
-      />
-    </>
   );
 }
 

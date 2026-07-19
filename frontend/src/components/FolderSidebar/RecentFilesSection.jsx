@@ -4,6 +4,12 @@ import paths from "@/utils/paths";
 import { middleTruncate } from "@/utils/directories";
 import FileTypeIcon from "./FileTypeIcon";
 import { addRecentProjectFile } from "@/utils/recentProjectFiles";
+import {
+  DocumentContextAction,
+  buildDocumentContextPayload,
+  dispatchDocumentContextAction,
+  stashPendingDocumentContext,
+} from "@/utils/documentContext";
 
 export default function RecentFilesSection({
   recentFiles,
@@ -19,8 +25,27 @@ export default function RecentFilesSection({
     const updated = addRecentProjectFile(file);
     onRecentFilesChange(updated);
 
+    const document = file.docId
+      ? {
+          docId: file.docId,
+          filename: file.filename || file.title,
+          label: file.label || file.title,
+          mentionType: file.mentionType || "document",
+        }
+      : null;
+    const contextPayload = document
+      ? buildDocumentContextPayload({
+          action: DocumentContextAction.ASK,
+          workspaceSlug: file.workspaceSlug,
+          document,
+        })
+      : null;
+
     if (slug !== file.workspaceSlug) {
+      if (contextPayload) stashPendingDocumentContext(contextPayload);
       navigate(paths.workspace.chat(file.workspaceSlug));
+    } else if (contextPayload) {
+      dispatchDocumentContextAction(contextPayload);
     }
   }
 

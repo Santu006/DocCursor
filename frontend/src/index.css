@@ -109,9 +109,9 @@
   --theme-loader: #000000;
   --theme-bg-primary: #ffffff;
   --theme-bg-secondary: #ffffff;
-  --theme-bg-sidebar: #edf2fa;
-  --theme-bg-container: #f9fbfd;
-  --theme-popup-menu-bg: #c2e7fe;
+  --theme-bg-sidebar: #f5f6f8;
+  --theme-bg-container: #fbfbfc;
+  --theme-popup-menu-bg: #eef0f3;
 
   --theme-bg-chat: #ffffff;
   --theme-bg-chat-input: #eaeaea;
@@ -120,10 +120,10 @@
   --theme-placeholder: #9ca3af;
   --theme-sidebar-item-default: #ffffff;
   --theme-sidebar-item-selected: #ffffff;
-  --theme-sidebar-item-hover: #c8efff;
+  --theme-sidebar-item-hover: #e8eaee;
 
   --theme-sidebar-item-text-inactive: #7a7d7e;
-  --theme-sidebar-item-text-active: #184558;
+  --theme-sidebar-item-text-active: #1a1a1a;
 
   --theme-sidebar-item-workspace-active: #000000;
   --theme-sidebar-item-workspace-inactive: #7a7d7e;

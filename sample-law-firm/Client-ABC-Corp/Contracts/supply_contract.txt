@@ -1,0 +1,62 @@
+SAMPLE DOCUMENT — FICTIONAL — FOR DEMO ONLY
+
+FRAMEWORK SUPPLY AGREEMENT
+Contract No.: ABC-SUP-2024-017
+
+This Framework Supply Agreement (the "Agreement") is made as of February 10, 2024, in Chicago, Illinois, by and between:
+
+Buyer: ABC Manufacturing Corp., 100 Industrial Parkway, Chicago, IL 60601 ("Buyer"), and
+
+Seller: Pacific Component Works Ltd., 88 Harbor Road, Long Beach, CA 90802 ("Seller").
+
+1. SCOPE
+
+1.1 This is a framework agreement. Individual purchase orders issued by Buyer ("Orders") incorporate these terms. If an Order conflicts with this Agreement, the Order controls only as to quantity, price, SKU, and delivery date; all other terms of this Agreement control.
+
+1.2 Goods. Seller shall supply printed circuit board assemblies and related electronic subassemblies as specified in Orders (the "Goods").
+
+2. ORDERS AND ACCEPTANCE
+
+Seller shall confirm each Order within three (3) business days. Silence after three (3) business days constitutes acceptance. Neither Party may cancel an accepted Order without written consent, except for Buyer's cancellation right for late delivery under Section 6.
+
+3. PRICE AND PAYMENT
+
+3.1 Prices are as stated in each Order, FOB Seller's Long Beach facility unless otherwise agreed.
+
+3.2 Payment. Buyer shall pay by irrevocable letter of credit or wire transfer as elected in the Order.
+
+   Under Letter of Credit: Buyer shall open an irrevocable letter of credit for one hundred percent (100%) of the Order value within twenty (20) days after Order acceptance, valid for ninety (90) days after the latest shipment date. Seventy percent (70%) shall be payable against shipping documents; thirty percent (30%) against Buyer's signed acceptance certificate.
+
+   Under Wire Transfer (T/T): Thirty percent (30%) deposit upon Order acceptance; seventy percent (70%) within fifteen (15) days after delivery and inspection.
+
+4. DELIVERY; RISK; INSURANCE
+
+4.1 Port / Place of Delivery. Unless otherwise stated in the Order, delivery is to Buyer's Chicago facility.
+
+4.2 Insurance. For Orders shipping by common carrier over $100,000 invoice value, Seller shall insure Goods for 110% of invoice value against all risks until delivery to Buyer.
+
+4.3 Late Delivery. If Seller fails to deliver within fourteen (14) days after the Order delivery date (other than Force Majeure), Buyer may cancel the delayed portion and/or claim liquidated damages of one-half percent (0.5%) of the delayed Goods' value per week of delay, capped at five percent (5%).
+
+5. WARRANTY
+
+Seller warrants Goods free from defects in materials and workmanship for eighteen (18) months after delivery. Seller shall repair or replace defective Goods at Seller's expense, including freight.
+
+6. CLAIMS
+
+Buyer shall notify Seller of quantity or visible defects within seven (7) days after receipt, and of latent defects within thirty (30) days after discovery during the warranty period.
+
+7. TERM
+
+This Agreement is effective February 10, 2024, and continues for three (3) years, unless terminated earlier for material breach uncured after fifteen (15) days' written notice.
+
+8. GOVERNING LAW
+
+Laws of the State of Illinois. Venue: Cook County, Illinois.
+
+IN WITNESS WHEREOF:
+
+ABC Manufacturing Corp.                 Pacific Component Works Ltd.
+By: /s/ Marcus Lee                      By: /s/ Hannah Cho
+Name: Marcus Lee                        Name: Hannah Cho
+Title: VP, Operations                   Title: Sales Director
+Date: February 10, 2024                 Date: February 10, 2024
